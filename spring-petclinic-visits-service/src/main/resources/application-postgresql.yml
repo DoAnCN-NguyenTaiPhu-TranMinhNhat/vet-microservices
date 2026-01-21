@@ -1,0 +1,21 @@
+# PostgreSQL configuration profile
+# Use this profile when running with PostgreSQL database
+# Usage: --spring.profiles.active=postgresql
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:petclinic}
+    username: ${POSTGRES_USER:petclinic}
+    password: ${POSTGRES_PASSWORD:petclinic}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath*:db/postgresql/schema.sql
+      data-locations: classpath*:db/postgresql/data.sql
+

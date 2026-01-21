@@ -1,0 +1,28 @@
+# Build artifacts (critical)
+**/target/
+**/build/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+
+# Node (if any)
+**/node_modules/
+**/dist/
+
+# Env
+.env
+.env.*
