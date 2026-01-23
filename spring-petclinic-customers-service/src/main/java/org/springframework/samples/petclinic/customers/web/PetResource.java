@@ -81,6 +81,11 @@ class PetResource {
         petRepository.findPetTypeById(petRequest.typeId())
             .ifPresent(pet::setType);
 
+        // Save AI fields
+        pet.setGender(petRequest.gender());
+        pet.setVaccinationStatus(petRequest.vaccinationStatus());
+        pet.setMedicalNotes(petRequest.medicalNotes());
+
         log.info("Saving pet {}", pet);
         return petRepository.save(pet);
     }

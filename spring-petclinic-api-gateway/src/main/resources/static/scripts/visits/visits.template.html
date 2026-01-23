@@ -84,6 +84,33 @@
     <div class="form-group">
         <button class="btn btn-primary" type="submit">Add New Visit</button>
         <button class="btn btn-secondary" type="button" ng-click="$ctrl.resetForm()">Reset</button>
+        <button class="btn btn-info" type="button" ng-click="$ctrl.getAIDiagnosis()" ng-disabled="$ctrl.aiLoading">
+            <span ng-if="$ctrl.aiLoading">Loading...</span>
+            <span ng-if="!$ctrl.aiLoading">🤖 AI Diagnosis</span>
+        </button>
+    </div>
+
+    <!-- AI Diagnosis Results -->
+    <div ng-if="$ctrl.aiPrediction" class="alert alert-info">
+        <h4>AI Diagnosis Results</h4>
+        <p><strong>Prediction:</strong> {{$ctrl.aiPrediction.diagnosis}}</p>
+        <p><strong>Confidence:</strong> {{$ctrl.aiPrediction.confidence * 100 | number:1}}%</p>
+        <p><strong>Top Predictions:</strong></p>
+        <ul>
+            <li ng-repeat="pred in $ctrl.aiPrediction.top_k">
+                {{pred.label}}: {{pred.prob * 100 | number:1}}%
+            </li>
+        </ul>
+        <div class="btn-group">
+            <button class="btn btn-success" ng-click="$ctrl.acceptAISuggestion()">Accept</button>
+            <button class="btn btn-warning" ng-click="$ctrl.rejectAISuggestion()">Reject</button>
+        </div>
+    </div>
+
+    <!-- AI Error -->
+    <div ng-if="$ctrl.aiError" class="alert alert-danger">
+        <h4>AI Diagnosis Error</h4>
+        <p>{{$ctrl.aiError}}</p>
     </div>
 
 </form>

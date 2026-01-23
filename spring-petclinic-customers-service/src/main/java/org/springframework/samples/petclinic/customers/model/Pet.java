@@ -16,6 +16,7 @@
 package org.springframework.samples.petclinic.customers.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import org.springframework.core.style.ToStringCreator;
 
@@ -54,17 +55,17 @@ public class Pet {
     @JsonIgnore
     private Owner owner;
 
-    @Override
-    public String toString() {
-        return new ToStringCreator(this)
-            .append("id", this.getId())
-            .append("name", this.getName())
-            .append("birthDate", this.getBirthDate())
-            .append("type", this.getType().getName())
-            .append("ownerFirstname", this.getOwner().getFirstName())
-            .append("ownerLastname", this.getOwner().getLastName())
-            .toString();
-    }
+    // AI Diagnosis Fields
+    @Column(name = "gender")
+    private String gender;
+
+    @Column(name = "vaccination_status")
+    private String vaccinationStatus;
+
+    @Column(name = "medical_notes")
+    private String medicalNotes;
+
+
 
     public Integer getId() {
         return this.id;
@@ -104,6 +105,31 @@ public class Pet {
 
     public void setOwner(Owner owner) {
         this.owner = owner;
+    }
+
+    // AI Diagnosis Field getters and setters
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public String getVaccinationStatus() {
+        return vaccinationStatus;
+    }
+
+    public void setVaccinationStatus(String vaccinationStatus) {
+        this.vaccinationStatus = vaccinationStatus;
+    }
+
+    public String getMedicalNotes() {
+        return medicalNotes;
+    }
+
+    public void setMedicalNotes(String medicalNotes) {
+        this.medicalNotes = medicalNotes;
     }
 
     @Override

@@ -15,10 +15,33 @@ angular.module('visits')
         self.symptomDuration = null;
         self.symptomsList = "";
         self.targetDiagnosis = "";
+        
+        // AI Required Fields
+        self.animalType = "dog";
+        self.gender = "male";
+        self.ageMonths = 24;
+        self.currentSeason = "summer";
+        self.vaccinationStatus = "yes";
 
-        // Load existing visits
+        // AI Diagnosis state
+        self.aiLoading = false;
+        self.aiPrediction = null;
+        self.aiError = null;
+
+        // Load existing visits and pet data
         $http.get(url).then(function (resp) {
             self.visits = resp.data;
+        });
+
+        // Load pet data for AI fields
+        $http.get('/api/petDetails/' + petId).then(function (resp) {
+            self.pet = resp.data;
+            // Calculate age in months from birth date
+            if (self.pet && self.pet.birthDate) {
+                var birthDate = new Date(self.pet.birthDate);
+                var now = new Date();
+                self.ageMonths = Math.floor((now - birthDate) / (1000 * 60 * 60 * 24 * 30));
+            }
         });
 
         // Reset form
@@ -31,6 +54,18 @@ angular.module('visits')
             self.symptomDuration = null;
             self.symptomsList = "";
             self.targetDiagnosis = "";
+            
+            // Reset AI fields to defaults
+            self.animalType = "dog";
+            self.gender = "male";
+            self.ageMonths = 24;
+            self.currentSeason = "summer";
+            self.vaccinationStatus = "yes";
+            
+            // Reset AI state
+            self.aiLoading = false;
+            self.aiPrediction = null;
+            self.aiError = null;
         };
 
         // Submit form
@@ -71,5 +106,60 @@ angular.module('visits')
                 console.error('Error creating visit:', error);
                 alert('Error creating visit: ' + (error.data?.message || error.statusText || 'Unknown error'));
             });
+        };
+
+        // AI Diagnosis functions
+        self.getAIDiagnosis = function () {
+            if (!self.symptomsList || self.symptomsList.trim() === "") {
+                self.aiError = "Please enter symptoms list first";
+                return;
+            }
+
+            self.aiLoading = true;
+            self.aiError = null;
+            self.aiPrediction = null;
+
+            var diagnosisData = {
+                symptoms_list: self.symptomsList,
+                temperature: self.temperature,
+                weight_kg: self.weightKg,
+                heart_rate: self.heartRate,
+                symptom_duration: self.symptomDuration,
+                animal_type: self.animalType,
+                gender: self.gender,
+                age_months: self.ageMonths,
+                current_season: self.currentSeason,
+                vaccination_status: self.pet ? self.pet.vaccinationStatus : "yes"
+            };
+
+            $http.post('/api/genai/diagnosis', diagnosisData).then(function (response) {
+                self.aiPrediction = response.data;
+                self.aiLoading = false;
+            }, function (error) {
+                self.aiError = error.data?.message || error.statusText || 'AI diagnosis failed';
+                self.aiLoading = false;
+            });
+        };
+
+        // Helper function to get current season
+        function getCurrentSeason() {
+            var month = new Date().getMonth() + 1; // 1-12
+            if (month >= 3 && month <= 5) return "spring";
+            if (month >= 6 && month <= 8) return "summer";
+            if (month >= 9 && month <= 11) return "fall";
+            return "winter";
+        }
+
+        self.acceptAISuggestion = function () {
+            if (self.aiPrediction && self.aiPrediction.diagnosis) {
+                self.targetDiagnosis = self.aiPrediction.diagnosis;
+                self.aiPrediction = null;
+                self.aiError = null;
+            }
+        };
+
+        self.rejectAISuggestion = function () {
+            self.aiPrediction = null;
+            self.aiError = null;
         };
     }]);

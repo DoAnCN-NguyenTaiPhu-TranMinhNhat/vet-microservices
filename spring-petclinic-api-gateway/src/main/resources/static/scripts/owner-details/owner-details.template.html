@@ -39,6 +39,12 @@
                 <dd>{{pet.birthDate | date:'yyyy MMM dd'}}</dd>
                 <dt>Type</dt>
                 <dd>{{pet.type.name}}</dd>
+                <dt>Gender</dt>
+                <dd>{{pet.gender || '-'}}</dd>
+                <dt>Vaccination</dt>
+                <dd>{{pet.vaccinationStatus || '-'}}</dd>
+                <dt>Medical Notes</dt>
+                <dd>{{pet.medicalNotes || '-'}}</dd>
             </dl>
         </td>
         <td valign="top">

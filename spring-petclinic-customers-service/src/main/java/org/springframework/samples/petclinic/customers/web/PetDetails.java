@@ -36,9 +36,16 @@ record PetDetails(
     @DateTimeFormat(pattern = "yyyy-MM-dd")
     Date birthDate,
 
-    PetType type
+    PetType type,
+    
+    String gender,
+    
+    String vaccinationStatus,
+    
+    String medicalNotes
 ) {
     public PetDetails(Pet pet) {
-        this(pet.getId(), pet.getName(), pet.getOwner().getFirstName() + " " + pet.getOwner().getLastName(), pet.getBirthDate(), pet.getType());
+        this(pet.getId(), pet.getName(), pet.getOwner().getFirstName() + " " + pet.getOwner().getLastName(), pet.getBirthDate(), pet.getType(), 
+             pet.getGender(), pet.getVaccinationStatus(), pet.getMedicalNotes());
     }
 }

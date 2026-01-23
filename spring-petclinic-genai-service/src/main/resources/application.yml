@@ -3,8 +3,6 @@ spring:
     web-application-type: reactive
   application:
     name: genai-service
-  profiles:
-    active: production
   config:
     import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888/},optional:classpath:/creds.yaml
   ai:
@@ -47,3 +45,16 @@ spring:
     activate:
       on-profile: docker
     import: configserver:http://config-server:8888
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://discovery-server:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+vetai:
+  diagnosis:
+    url: ${VETAI_DIAGNOSIS_URL:http://vet-ai:8000}

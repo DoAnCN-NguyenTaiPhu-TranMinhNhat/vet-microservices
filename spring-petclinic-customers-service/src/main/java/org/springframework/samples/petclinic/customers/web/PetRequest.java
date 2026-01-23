@@ -28,7 +28,10 @@ record PetRequest(int id,
                   Date birthDate,
                   @Size(min = 1)
                   String name,
-                  int typeId
+                  int typeId,
+                  String gender,
+                  String vaccinationStatus,
+                  String medicalNotes
 ) {
 
 }

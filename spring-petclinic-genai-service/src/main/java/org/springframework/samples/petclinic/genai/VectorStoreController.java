@@ -46,18 +46,17 @@ public class VectorStoreController {
 		this.vectorStore = vectorStore;
 	}
 
-	@EventListener
+	// @EventListener - Disabled to prevent startup issues
 	public void loadVetDataToVectorStoreOnStartup(ApplicationStartedEvent event) throws IOException {
 		Resource resource = new ClassPathResource("vectorstore.json");
 
-		// Check if file exists
-		if (resource.exists()) {
+		// Check if file exists - skip loading from file in JAR environment
+		// File access doesn't work in JAR packaging, so we'll always load from vets service
+		if (false && resource.exists()) {
 			// In order to save on AI credits, use a pre-embedded database that was saved
-			// to
-			// disk based on the current data in the h2 data.sql file
-			File file = resource.getFile();
-			((SimpleVectorStore) this.vectorStore).load(file);
-			logger.info("vector store loaded from existing vectorstore.json file in the classpath");
+			// to disk based on the current data in the h2 data.sql file
+			// Note: This is disabled for JAR packaging
+			logger.info("Skipping vector store file loading in JAR environment");
 			return;
 		}
 
