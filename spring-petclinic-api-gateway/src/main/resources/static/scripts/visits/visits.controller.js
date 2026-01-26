@@ -132,9 +132,18 @@ angular.module('visits')
                 vaccination_status: self.pet ? self.pet.vaccinationStatus : "yes"
             };
 
-            $http.post('/api/genai/diagnosis', diagnosisData).then(function (response) {
+            // Include visit/pet/vet IDs for training integration
+            var diagnosisUrl = '/api/genai/diagnosis';
+            if (self.pet && self.pet.id) {
+                diagnosisUrl += '?visitId=' + (self.visits ? self.visits.length + 1 : 1) + 
+                               '&petId=' + self.pet.id + 
+                               '&veterinarianId=1';
+            }
+
+            $http.post(diagnosisUrl, diagnosisData).then(function (response) {
                 self.aiPrediction = response.data;
                 self.aiLoading = false;
+                console.log('AI diagnosis received:', response.data);
             }, function (error) {
                 self.aiError = error.data?.message || error.statusText || 'AI diagnosis failed';
                 self.aiLoading = false;
@@ -152,14 +161,52 @@ angular.module('visits')
 
         self.acceptAISuggestion = function () {
             if (self.aiPrediction && self.aiPrediction.diagnosis) {
+                // Update UI
                 self.targetDiagnosis = self.aiPrediction.diagnosis;
+                
+                // Send feedback to training system
+                var feedbackData = {
+                    finalDiagnosis: self.aiPrediction.diagnosis,
+                    isCorrect: true,
+                    confidenceRating: 4,
+                    comments: "Doctor accepted AI suggestion",
+                    veterinarianId: 1  // TODO: Get actual vet ID
+                };
+                
+                // Send feedback API call
+                $http.post('/api/genai/diagnosis/1/feedback', feedbackData).then(function () {
+                    console.log('Feedback sent successfully');
+                }, function (error) {
+                    console.error('Failed to send feedback:', error);
+                });
+                
+                // Clear AI prediction
                 self.aiPrediction = null;
                 self.aiError = null;
             }
         };
 
         self.rejectAISuggestion = function () {
-            self.aiPrediction = null;
-            self.aiError = null;
+            if (self.aiPrediction && self.aiPrediction.diagnosis) {
+                // Send feedback to training system
+                var feedbackData = {
+                    finalDiagnosis: self.targetDiagnosis || "Unknown",
+                    isCorrect: false,
+                    confidenceRating: 2,
+                    comments: "Doctor rejected AI suggestion",
+                    veterinarianId: 1  // TODO: Get actual vet ID
+                };
+                
+                // Send feedback API call
+                $http.post('/api/genai/diagnosis/1/feedback', feedbackData).then(function () {
+                    console.log('Rejection feedback sent successfully');
+                }, function (error) {
+                    console.error('Failed to send rejection feedback:', error);
+                });
+                
+                // Clear AI prediction
+                self.aiPrediction = null;
+                self.aiError = null;
+            }
         };
     }]);
