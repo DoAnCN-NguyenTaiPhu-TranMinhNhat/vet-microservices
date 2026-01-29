@@ -1,178 +1,270 @@
+version: "3.9"
+
+networks:
+  petclinic-net:
+    driver: bridge
+
 services:
+
+  ## ========================
+  ## Spring Cloud Core
+  ## ========================
+
   config-server:
     image: springcommunity/spring-petclinic-config-server
     container_name: config-server
+    networks: [petclinic-net]
+    ports:
+      - "8888:8888"
     deploy:
       resources:
         limits:
           memory: 512M
     healthcheck:
-      test: ["CMD", "curl", "-I", "http://config-server:8888"]
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
       interval: 5s
       timeout: 5s
       retries: 10
-    ports:
-     - 8888:8888
 
   discovery-server:
     image: springcommunity/spring-petclinic-discovery-server
     container_name: discovery-server
+    networks: [petclinic-net]
+    ports:
+      - "8761:8761"
     deploy:
       resources:
         limits:
           memory: 512M
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://discovery-server:8761"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
     depends_on:
       config-server:
         condition: service_healthy
-    ports:
-     - 8761:8761
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   customers-service:
     image: springcommunity/spring-petclinic-customers-service
     container_name: customers-service
+    networks: [petclinic-net]
+    ports:
+      - "8081:8081"
     deploy:
       resources:
         limits:
           memory: 512M
     depends_on:
-      config-server:
-        condition: service_healthy
       discovery-server:
         condition: service_healthy
-    ports:
-    - 8081:8081
 
   visits-service:
     image: springcommunity/spring-petclinic-visits-service
     container_name: visits-service
+    networks: [petclinic-net]
+    ports:
+      - "8082:8082"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
+      SPRING_PROFILES_ACTIVE: docker
     deploy:
       resources:
         limits:
           memory: 512M
     depends_on:
-      config-server:
-        condition: service_healthy
       discovery-server:
         condition: service_healthy
-    ports:
-     - 8082:8082
 
   vets-service:
     image: springcommunity/spring-petclinic-vets-service
     container_name: vets-service
+    networks: [petclinic-net]
+    ports:
+      - "8083:8083"
     deploy:
       resources:
         limits:
           memory: 512M
     depends_on:
-      config-server:
-        condition: service_healthy
       discovery-server:
         condition: service_healthy
-    ports:
-     - 8083:8083
 
   api-gateway:
     image: springcommunity/spring-petclinic-api-gateway
     container_name: api-gateway
+    networks: [petclinic-net]
+    ports:
+      - "8080:8080"
     deploy:
       resources:
         limits:
           memory: 512M
     depends_on:
-      config-server:
-        condition: service_healthy
       discovery-server:
         condition: service_healthy
-    ports:
-     - 8080:8080
-
-  tracing-server:
-    image: openzipkin/zipkin
-    container_name: tracing-server
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    ports:
-     - 9411:9411
 
   admin-server:
     image: springcommunity/spring-petclinic-admin-server
     container_name: admin-server
+    networks: [petclinic-net]
+    ports:
+      - "9090:9090"
     deploy:
       resources:
         limits:
           memory: 512M
     depends_on:
-      config-server:
-        condition: service_healthy
       discovery-server:
         condition: service_healthy
-    ports:
-     - 9090:9090
 
-  ## Grafana / Prometheus
+  tracing-server:
+    image: openzipkin/zipkin
+    container_name: tracing-server
+    networks: [petclinic-net]
+    ports:
+      - "9411:9411"
+
+  ## ========================
+  ## Observability
+  ## ========================
 
   grafana-server:
     build: ./docker/grafana
     container_name: grafana-server
+    networks: [petclinic-net]
+    ports:
+      - "3030:3000"
     deploy:
       resources:
         limits:
           memory: 256M
-    ports:
-    - 3030:3000
 
   prometheus-server:
     build: ./docker/prometheus
     container_name: prometheus-server
+    networks: [petclinic-net]
+    ports:
+      - "9091:9090"
     deploy:
       resources:
         limits:
           memory: 256M
+
+  ## ========================
+  ## MLflow Stack
+  ## ========================
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-mlflow
+    networks: [petclinic-net]
+    environment:
+      POSTGRES_DB: mlflow
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     ports:
-    - 9091:9090
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    container_name: mlflow
+    networks: [petclinic-net]
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+    command: >
+      mlflow server 
+        --host 0.0.0.0 
+        --port 5000 
+        --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+        --default-artifact-root /mlflow/artifacts
+        --serve-artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mlflow", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ## ========================
+  ## Vet AI
+  ## ========================
 
   vet-ai:
-    build: ../vet-ai
+    build:
+      context: ../vet-ai
+      dockerfile: Dockerfile
     container_name: vet-ai
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    networks: [petclinic-net]
     ports:
-      - 8000:8000
+      - "8000:8000"
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   genai-service:
     build: ./spring-petclinic-genai-service
     container_name: genai-service
+    networks: [petclinic-net]
+    ports:
+      - "8090:8084"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - VETAI_DIAGNOSIS_URL=http://vet-ai:8000
+      SPRING_PROFILES_ACTIVE: docker
+      VETAI_DIAGNOSIS_URL: http://vet-ai:8000
     deploy:
       resources:
         limits:
           memory: 768M
     depends_on:
-      config-server:
-        condition: service_healthy
-      discovery-server:
-        condition: service_healthy
       vet-ai:
         condition: service_healthy
-    ports:
-      - 8090:8084
+
+  vet-ai-training:
+    build:
+      context: ../vet-ai
+      dockerfile: Dockerfile.training
+    container_name: vet-ai-training
+    networks: [petclinic-net]
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      DATA_SOURCE: api
+      API_BASE_URL: http://vet-ai:8000
+    volumes:
+      - ../vet-ai:/app
+      - training_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+    depends_on:
+      vet-ai:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    profiles:
+      - training
+
+volumes:
+  postgres_data:
+  mlflow_artifacts:
+  training_data:

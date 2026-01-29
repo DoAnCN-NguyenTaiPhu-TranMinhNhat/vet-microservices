@@ -4,8 +4,8 @@ public record AiDiagnosisRequest(
         String animal_type,
         String gender,
         Integer age_months,
-        Float weight_kg,           // ✅ Changed to Float
-        Float temperature,         // ✅ Changed to Float
+        Float weight_kg,           
+        Float temperature,         
         Integer heart_rate,
         String current_season,
         String vaccination_status,
