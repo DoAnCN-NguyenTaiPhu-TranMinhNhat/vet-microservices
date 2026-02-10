@@ -39,7 +39,8 @@ import java.util.*;
 public class Owner {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.IDENTITY, generator = "owner_seq")
+    @SequenceGenerator(name = "owner_seq", sequenceName = "owner_sequence", initialValue = 1, allocationSize = 1)
     private Integer id;
 
     @Column(name = "first_name")

@@ -1,6 +1,19 @@
 DROP TABLE pets IF EXISTS;
 DROP TABLE types IF EXISTS;
 DROP TABLE owners IF EXISTS;
+DROP TABLE owner_sequence IF EXISTS;
+DROP TABLE pet_sequence IF EXISTS;
+
+-- Create sequences for ID generation starting from 1
+CREATE TABLE owner_sequence (
+  next_val INTEGER PRIMARY KEY
+);
+INSERT INTO owner_sequence (next_val) VALUES (1);
+
+CREATE TABLE pet_sequence (
+  next_val INTEGER PRIMARY KEY
+);
+INSERT INTO pet_sequence (next_val) VALUES (1);
 
 CREATE TABLE types (
   id   INTEGER IDENTITY PRIMARY KEY,

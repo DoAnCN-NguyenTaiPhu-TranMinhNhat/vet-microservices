@@ -1,5 +1,36 @@
 <h2>Visits</h2>
 
+<!-- Pet Information Section -->
+<div ng-if="$ctrl.petLoading" class="alert alert-warning">
+    <h4>Loading Pet Information...</h4>
+    <p>Please wait while we load the pet details.</p>
+</div>
+
+<div ng-if="$ctrl.petLoadError" class="alert alert-danger">
+    <h4>Error</h4>
+    <p>{{$ctrl.petLoadError}}</p>
+    <p><a ui-sref="ownerList">← Back to Owner List</a></p>
+</div>
+
+<div ng-if="$ctrl.pet && !$ctrl.petLoading" class="alert alert-info">
+    <h4>Pet Information</h4>
+    <div class="row">
+        <div class="col-md-6">
+            <p><strong>Name:</strong> {{$ctrl.pet.name}}</p>
+            <p><strong>Type:</strong> {{$ctrl.pet.type.name}}</p>
+            <p><strong>Birth Date:</strong> {{$ctrl.pet.birthDate | date:'mediumDate'}}</p>
+            <p><strong>Age:</strong> {{$ctrl.ageMonths ? $ctrl.ageMonths + ' months' : 'Calculating...'}}</p>
+        </div>
+        <div class="col-md-6">
+            <p><strong>Gender:</strong> {{$ctrl.pet.gender || 'Not specified'}}</p>
+            <p><strong>Vaccination Status:</strong> {{$ctrl.pet.vaccinationStatus || 'Not specified'}}</p>
+            <p><strong>Medical Notes:</strong> {{$ctrl.pet.medicalNotes || 'None'}}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Only show form if no error -->
+<div ng-if="!$ctrl.petLoadError">
 <form ng-submit="$ctrl.submit()">
 
     <div class="form-group">
@@ -66,6 +97,14 @@
     </div>
 
     <div class="form-group">
+        <label>Medical History</label>
+        <textarea class="form-control" ng-model="$ctrl.medicalHistory" 
+                  rows="2" maxlength="1000"
+                  placeholder="e.g. previous surgeries, chronic conditions, allergies"></textarea>
+        <small class="form-text text-muted">Previous medical conditions and treatments</small>
+    </div>
+
+    <div class="form-group">
         <label>Target Diagnosis</label>
         <select class="form-control" ng-model="$ctrl.targetDiagnosis">
             <option value="">-- Select Diagnosis --</option>
@@ -84,10 +123,13 @@
     <div class="form-group">
         <button class="btn btn-primary" type="submit">Add New Visit</button>
         <button class="btn btn-secondary" type="button" ng-click="$ctrl.resetForm()">Reset</button>
-        <button class="btn btn-info" type="button" ng-click="$ctrl.getAIDiagnosis()" ng-disabled="$ctrl.aiLoading">
+        <button class="btn btn-info" type="button" ng-click="$ctrl.getAIDiagnosis()" 
+                ng-disabled="$ctrl.aiLoading || $ctrl.petLoading || !$ctrl.currentVeterinarianId">
             <span ng-if="$ctrl.aiLoading">Loading...</span>
             <span ng-if="!$ctrl.aiLoading">🤖 AI Diagnosis</span>
         </button>
+        <small ng-if="$ctrl.petLoading" class="form-text text-muted">Loading pet data...</small>
+        <small ng-if="!$ctrl.currentVeterinarianId && !$ctrl.petLoading" class="form-text text-warning">Veterinarian authentication required</small>
     </div>
 
     <!-- AI Diagnosis Results -->
@@ -114,6 +156,7 @@
     </div>
 
 </form>
+</div> <!-- End form wrapper -->
 
 <h3>Previous Visits</h3>
 <table class="table table-striped">

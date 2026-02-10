@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confidence Rating Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular.min.js"></script>
+</head>
+<body ng-app="testApp" ng-controller="TestController">
+    <h1>Confidence Rating Calculation Test</h1>
+    
+    <div>
+        <h3>AI Prediction</h3>
+        <label>AI Diagnosis: <input type="text" ng-model="aiPrediction.diagnosis" placeholder="e.g., Respiratory Infection"></label><br>
+        <label>AI Confidence: <input type="number" ng-model="aiPrediction.confidence" min="0" max="1" step="0.1"></label><br>
+    </div>
+    
+    <div>
+        <h3>Doctor's Final Diagnosis</h3>
+        <label>Final Diagnosis: <input type="text" ng-model="finalDiagnosis" placeholder="e.g., Respiratory Infection"></label><br>
+        <label>Is Correct: <input type="checkbox" ng-model="isCorrect"></label><br>
+    </div>
+    
+    <button ng-click="calculateRating()">Calculate Confidence Rating</button>
+    
+    <div ng-show="calculatedRating !== null">
+        <h3>Result</h3>
+        <p><strong>Calculated Confidence Rating: {{ calculatedRating }}/5</strong></p>
+        <p><strong>Interpretation: {{ getInterpretation(calculatedRating) }}</strong></p>
+    </div>
+    
+    <div>
+        <h3>Test Scenarios</h3>
+        <button ng-click="runTestScenarios()">Run All Test Scenarios</button>
+        <div ng-repeat="scenario in testResults">
+            <h4>{{ scenario.name }}</h4>
+            <p>AI: {{ scenario.ai }} | Final: {{ scenario.final }} | Correct: {{ scenario.correct }}</p>
+            <p><strong>Rating: {{ scenario.rating }}/5 - {{ scenario.interpretation }}</strong></p>
+        </div>
+    </div>
+
+    <script>
+        angular.module('testApp', [])
+        .controller('TestController', function($scope) {
+            // Initialize with sample data
+            $scope.aiPrediction = {
+                diagnosis: 'Respiratory Infection',
+                confidence: 0.85
+            };
+            $scope.finalDiagnosis = 'Respiratory Infection';
+            $scope.isCorrect = true;
+            $scope.calculatedRating = null;
+            $scope.testResults = [];
+            
+            // Medical terms for partial matching
+            var medicalTerms = [
+                'infection', 'inflammation', 'disease', 'syndrome', 'disorder',
+                'acute', 'chronic', 'bacterial', 'viral', 'fungal', 'parasitic',
+                'respiratory', 'gastrointestinal', 'dermatological', 'neurological',
+                'cardiac', 'renal', 'hepatic', 'musculoskeletal', 'ocular',
+                'fever', 'cough', 'diarrhea', 'vomiting', 'skin', 'joint', 'heart',
+                'lung', 'liver', 'kidney', 'stomach', 'intestine', 'colon'
+            ];
+            
+            $scope.calculateConfidenceRating = function(aiPrediction, finalDiagnosis, isCorrect) {
+                if (!aiPrediction || !aiPrediction.diagnosis || !finalDiagnosis) {
+                    return isCorrect ? 3 : 1; // Default fallback
+                }
+                
+                var aiDiagnosis = aiPrediction.diagnosis.toLowerCase().trim();
+                var finalDiag = finalDiagnosis.toLowerCase().trim();
+                var aiConfidence = aiPrediction.confidence || 0;
+                
+                // Exact match
+                if (aiDiagnosis === finalDiag) {
+                    if (isCorrect) {
+                        // High confidence when AI is correct and matches exactly
+                        return aiConfidence > 0.8 ? 5 : (aiConfidence > 0.6 ? 4 : 3);
+                    } else {
+                        // AI was correct but doctor marked as incorrect - low confidence
+                        return 1;
+                    }
+                }
+                
+                // Partial match (contains similar keywords)
+                if (isPartialMatch(aiDiagnosis, finalDiag)) {
+                    if (isCorrect) {
+                        // Partial match with doctor confirmation
+                        return aiConfidence > 0.7 ? 4 : 3;
+                    } else {
+                        // Partial match but doctor disagrees
+                        return 2;
+                    }
+                }
+                
+                // No match
+                if (isCorrect) {
+                    // Doctor confirmed AI despite different diagnosis - moderate confidence
+                    return 2;
+                } else {
+                    // AI was wrong and doctor corrected - very low confidence
+                    return 0;
+                }
+            };
+            
+            function isPartialMatch(aiDiagnosis, finalDiagnosis) {
+                var matchingTerms = 0;
+                var totalTerms = 0;
+                
+                // Count medical terms in both diagnoses
+                medicalTerms.forEach(function(term) {
+                    var aiHasTerm = aiDiagnosis.includes(term);
+                    var finalHasTerm = finalDiagnosis.includes(term);
+                    
+                    if (aiHasTerm || finalHasTerm) {
+                        totalTerms++;
+                        if (aiHasTerm && finalHasTerm) {
+                            matchingTerms++;
+                        }
+                    }
+                });
+                
+                // If at least 50% of medical terms match, consider it partial match
+                return totalTerms > 0 && (matchingTerms / totalTerms) >= 0.5;
+            }
+            
+            $scope.calculateRating = function() {
+                $scope.calculatedRating = $scope.calculateConfidenceRating(
+                    $scope.aiPrediction,
+                    $scope.finalDiagnosis,
+                    $scope.isCorrect
+                );
+            };
+            
+            $scope.getInterpretation = function(rating) {
+                switch(rating) {
+                    case 5: return "Excellent - AI prediction was perfect";
+                    case 4: return "Good - AI prediction was very accurate";
+                    case 3: return "Average - AI prediction was moderately accurate";
+                    case 2: return "Poor - AI prediction had some merit but was mostly wrong";
+                    case 1: return "Very Poor - AI prediction was barely useful";
+                    case 0: return "Terrible - AI prediction was completely wrong";
+                    default: return "Unknown";
+                }
+            };
+            
+            $scope.runTestScenarios = function() {
+                $scope.testResults = [
+                    {
+                        name: "Perfect Match - High Confidence",
+                        ai: "Respiratory Infection",
+                        final: "Respiratory Infection",
+                        correct: true,
+                        confidence: 0.9
+                    },
+                    {
+                        name: "Perfect Match - Low Confidence",
+                        ai: "Respiratory Infection", 
+                        final: "Respiratory Infection",
+                        correct: true,
+                        confidence: 0.5
+                    },
+                    {
+                        name: "Partial Match - Respiratory Terms",
+                        ai: "Acute Respiratory Infection",
+                        final: "Chronic Respiratory Disease",
+                        correct: true,
+                        confidence: 0.8
+                    },
+                    {
+                        name: "No Match - Different Systems",
+                        ai: "Respiratory Infection",
+                        final: "Gastrointestinal Disease",
+                        correct: false,
+                        confidence: 0.7
+                    },
+                    {
+                        name: "AI Wrong - Doctor Correct",
+                        ai: "Respiratory Infection",
+                        final: "Cardiac Disease",
+                        correct: false,
+                        confidence: 0.9
+                    }
+                ];
+                
+                // Calculate ratings for all scenarios
+                $scope.testResults.forEach(function(scenario) {
+                    scenario.rating = $scope.calculateConfidenceRating(
+                        {diagnosis: scenario.ai, confidence: scenario.confidence},
+                        scenario.final,
+                        scenario.correct
+                    );
+                    scenario.interpretation = $scope.getInterpretation(scenario.rating);
+                });
+            };
+        });
+    </script>
+</body>
+</html>

@@ -1,117 +1,214 @@
 'use strict';
 
 angular.module('visits')
-    .controller('VisitsController', ['$http', '$state', '$stateParams', '$filter', function ($http, $state, $stateParams, $filter) {
+    .controller('VisitsController', ['$http', '$state', '$stateParams', '$filter', 
+                                  'AuthService', 'PetService', 'VisitService', 'DiagnosisService',
+                                  function ($http, $state, $stateParams, $filter, 
+                                           AuthService, PetService, VisitService, DiagnosisService) {
         var self = this;
-        var petId = $stateParams.petId || 0;
-        var url = "api/visit/owners/" + ($stateParams.ownerId || 0) + "/pets/" + petId + "/visits";
+        var petId = $stateParams.petId;
+        var ownerId = $stateParams.ownerId;
         
-        // Initialize form fields
-        self.date = new Date();
+        // Debug: Show raw state params and their types
+        console.log('VisitsController: Raw stateParams:', $stateParams);
+        console.log('VisitsController: petId type:', typeof petId, 'value:', petId);
+        console.log('VisitsController: ownerId type:', typeof ownerId, 'value:', ownerId);
+        
+        // Convert to integers if they're strings
+        petId = parseInt(petId);
+        ownerId = parseInt(ownerId);
+        
+        console.log('VisitsController: Frontend IDs - petId =', petId, 'ownerId =', ownerId);
+        
+        // Validate IDs - backend uses 0-based indexing
+        if (petId < 0) {
+            console.log('VisitsController: Invalid petId, blocking API calls');
+            self.petLoadError = 'Invalid pet ID. Please navigate from the owner details page.';
+            return;
+        }
+        
+        if (ownerId < 0) {
+            console.log('VisitsController: Invalid ownerId, blocking API calls');
+            self.petLoadError = 'Invalid owner ID. Please navigate from the owner details page.';
+            return;
+        }
+        
+        console.log('VisitsController: Validation passed, loading data');
+        
+        // Pet ID 0 is now supported - allow visits for all valid pet IDs
+        
+        // Define loadData function before calling it
+        self.loadData = function() {
+            self.petLoading = true;
+            self.petLoadError = null;
+            
+            // Load pet details FIRST using original IDs
+            PetService.getPetDetails(petId, ownerId)
+                .then(function(pet) {
+                    self.pet = pet;
+                    
+                    // Initialize AI fields from pet data AFTER pet is loaded
+                    self.animalType = pet.type ? pet.type.name : null;
+                    self.gender = pet.gender || null;
+                    self.ageMonths = PetService.calculateAgeInMonths(pet.birthDate);
+                    self.currentSeason = PetService.getCurrentSeason();
+                    self.vaccinationStatus = pet.vaccinationStatus || null;
+                    self.medicalHistory = pet.medicalNotes || "";
+                    
+                    // Set form date to current date
+                    self.date = new Date();
+                    
+                    self.petLoading = false;
+                    
+                    // Load visits after pet data is loaded using original IDs
+                    VisitService.getVisits(ownerId, petId)
+                        .then(function(visits) {
+                            self.visits = visits;
+                        })
+                        .catch(function(error) {
+                            console.error('Failed to load visits:', error);
+                        });
+                    
+                    // Load veterinarian authentication
+                    AuthService.getCurrentUser()
+                        .then(function(user) {
+                            self.currentVeterinarianId = user.veterinarianId;
+                        })
+                        .catch(function(error) {
+                            console.error('Failed to load current user:', error);
+                            self.authError = 'Authentication failed. Please try again.';
+                        });
+                })
+                .catch(function(error) {
+                    console.error('Failed to load pet details:', error);
+                    self.petLoadError = 'Failed to load pet details. Please try again.';
+                    self.petLoading = false;
+                });
+        };
+        
+        // Initialize form fields - no hardcoded defaults
+        self.date = null; // Will be set to current date when form is ready
         self.desc = "";
         self.temperature = null;
         self.weightKg = null;
         self.heartRate = null;
         self.symptomDuration = null;
         self.symptomsList = "";
+        self.medicalHistory = null; // Will be loaded from pet data
         self.targetDiagnosis = "";
         
-        // AI Required Fields
-        self.animalType = "dog";
-        self.gender = "male";
-        self.ageMonths = 24;
-        self.currentSeason = "summer";
-        self.vaccinationStatus = "yes";
-
+        // AI-related fields - initialized as null until data loads
+        self.animalType = null;
+        self.gender = null;
+        self.ageMonths = null;
+        self.currentSeason = null;
+        self.vaccinationStatus = null;
+        
         // AI Diagnosis state
         self.aiLoading = false;
         self.aiPrediction = null;
         self.aiError = null;
-
-        // Load existing visits and pet data
-        $http.get(url).then(function (resp) {
-            self.visits = resp.data;
-        });
-
-        // Load pet data for AI fields
-        $http.get('/api/petDetails/' + petId).then(function (resp) {
-            self.pet = resp.data;
-            // Calculate age in months from birth date
-            if (self.pet && self.pet.birthDate) {
-                var birthDate = new Date(self.pet.birthDate);
-                var now = new Date();
-                self.ageMonths = Math.floor((now - birthDate) / (1000 * 60 * 60 * 24 * 30));
-            }
-        });
-
-        // Reset form
+        
+        // Loading states
+        self.petLoading = true;
+        self.petLoadError = null;
+        
+        // Current veterinarian ID (loaded from session)
+        self.currentVeterinarianId = null;
+        
+        // Call loadData to start the process
+        self.loadData();
+        
+        // Reset form - restore from pet profile, not hardcoded defaults
         self.resetForm = function () {
-            self.date = new Date();
+            self.date = new Date(); // Current date
             self.desc = "";
             self.temperature = null;
             self.weightKg = null;
             self.heartRate = null;
             self.symptomDuration = null;
             self.symptomsList = "";
+            self.medicalHistory = self.pet && self.pet.medicalNotes ? self.pet.medicalNotes : null;
             self.targetDiagnosis = "";
             
-            // Reset AI fields to defaults
-            self.animalType = "dog";
-            self.gender = "male";
-            self.ageMonths = 24;
-            self.currentSeason = "summer";
-            self.vaccinationStatus = "yes";
+            // Reset AI fields from pet data
+            if (self.pet) {
+                self.animalType = self.pet.type ? self.pet.type.name : null;
+                self.gender = self.pet.gender || null;
+                self.ageMonths = PetService.calculateAgeInMonths(self.pet.birthDate);
+                self.currentSeason = PetService.getCurrentSeason();
+                self.vaccinationStatus = self.pet.vaccinationStatus || null;
+            }
             
             // Reset AI state
             self.aiLoading = false;
             self.aiPrediction = null;
             self.aiError = null;
         };
-
-        // Submit form
+        
+        // Submit form - create visit first, then optionally AI diagnosis
         self.submit = function () {
-            var data = {
+            if (!self.currentVeterinarianId) {
+                alert('Veterinarian authentication required');
+                return;
+            }
+            
+            var visitData = {
                 date: $filter('date')(self.date, "yyyy-MM-dd"),
                 description: self.desc
             };
 
             // Add medical data fields if provided
             if (self.temperature !== null && self.temperature !== "") {
-                data.temperature = parseFloat(self.temperature);
+                visitData.temperature = parseFloat(self.temperature);
             }
             if (self.weightKg !== null && self.weightKg !== "") {
-                data.weightKg = parseFloat(self.weightKg);
+                visitData.weightKg = parseFloat(self.weightKg);
             }
             if (self.heartRate !== null && self.heartRate !== "") {
-                data.heartRate = parseInt(self.heartRate);
+                visitData.heartRate = parseInt(self.heartRate);
             }
             if (self.symptomDuration !== null && self.symptomDuration !== "") {
-                data.symptomDuration = parseInt(self.symptomDuration);
+                visitData.symptomDuration = parseInt(self.symptomDuration);
             }
             if (self.symptomsList && self.symptomsList.trim() !== "") {
-                data.symptomsList = self.symptomsList.trim();
+                visitData.symptomsList = self.symptomsList.trim();
             }
             if (self.targetDiagnosis && self.targetDiagnosis !== "") {
-                data.targetDiagnosis = self.targetDiagnosis;
+                visitData.targetDiagnosis = self.targetDiagnosis;
             }
 
-            $http.post(url, data).then(function () {
-                // Reload visits to show new data
-                $http.get(url).then(function (resp) {
-                    self.visits = resp.data;
+            VisitService.createVisit(ownerId, petId, visitData)
+                .then(function(createdVisit) {
+                    console.log('Visit created successfully:', createdVisit);
+                    
+                    // Reload visits to show new data using original IDs
+                    return VisitService.getVisits(ownerId, petId);
+                })
+                .then(function(visits) {
+                    self.visits = visits;
+                    self.resetForm();
+                })
+                .catch(function(error) {
+                    console.error('Error creating visit:', error);
+                    alert('Error creating visit: ' + (error.data?.message || error.statusText || 'Unknown error'));
                 });
-                // Reset form after successful submission
-                self.resetForm();
-            }, function (error) {
-                console.error('Error creating visit:', error);
-                alert('Error creating visit: ' + (error.data?.message || error.statusText || 'Unknown error'));
-            });
         };
-
+        
         // AI Diagnosis functions
         self.getAIDiagnosis = function () {
             if (!self.symptomsList || self.symptomsList.trim() === "") {
                 self.aiError = "Please enter symptoms list first";
+                return;
+            }
+            
+            if (!self.currentVeterinarianId) {
+                self.aiError = "Veterinarian authentication required for AI diagnosis";
+                return;
+            }
+            
+            if (!self.pet || self.pet.id === undefined || self.pet.id === null) {
+                self.aiError = "Pet information required for AI diagnosis";
                 return;
             }
 
@@ -119,94 +216,127 @@ angular.module('visits')
             self.aiError = null;
             self.aiPrediction = null;
 
-            var diagnosisData = {
-                symptoms_list: self.symptomsList,
+            // Create diagnosis data using service
+            var formData = {
+                symptomsList: self.symptomsList,
                 temperature: self.temperature,
-                weight_kg: self.weightKg,
-                heart_rate: self.heartRate,
-                symptom_duration: self.symptomDuration,
-                animal_type: self.animalType,
-                gender: self.gender,
-                age_months: self.ageMonths,
-                current_season: self.currentSeason,
-                vaccination_status: self.pet ? self.pet.vaccinationStatus : "yes"
+                weightKg: self.weightKg,
+                heartRate: self.heartRate,
+                symptomDuration: self.symptomDuration,
+                medicalHistory: self.medicalHistory,
+                currentSeason: self.currentSeason
             };
+            
+            var petData = {
+                type: self.pet.type,
+                gender: self.gender,
+                ageMonths: self.ageMonths,
+                vaccinationStatus: self.vaccinationStatus
+            };
+            
+            var diagnosisData = DiagnosisService.createDiagnosisData(formData, petData);
 
-            // Include visit/pet/vet IDs for training integration
-            var diagnosisUrl = '/api/genai/diagnosis';
-            if (self.pet && self.pet.id) {
-                diagnosisUrl += '?visitId=' + (self.visits ? self.visits.length + 1 : 1) + 
-                               '&petId=' + self.pet.id + 
-                               '&veterinarianId=1';
-            }
-
-            $http.post(diagnosisUrl, diagnosisData).then(function (response) {
-                self.aiPrediction = response.data;
-                self.aiLoading = false;
-                console.log('AI diagnosis received:', response.data);
-            }, function (error) {
-                self.aiError = error.data?.message || error.statusText || 'AI diagnosis failed';
-                self.aiLoading = false;
-            });
+            // Don't estimate visitId - let backend handle it or require visit creation first
+            DiagnosisService.getAIDiagnosis(diagnosisData, null, self.pet.id, self.currentVeterinarianId)
+                .then(function(response) {
+                    self.aiPrediction = response;
+                    self.aiLoading = false;
+                    console.log('AI diagnosis received:', response);
+                })
+                .catch(function(error) {
+                    self.aiError = error.data?.message || error.statusText || 'AI diagnosis failed';
+                    self.aiLoading = false;
+                });
         };
-
-        // Helper function to get current season
-        function getCurrentSeason() {
-            var month = new Date().getMonth() + 1; // 1-12
-            if (month >= 3 && month <= 5) return "spring";
-            if (month >= 6 && month <= 8) return "summer";
-            if (month >= 9 && month <= 11) return "fall";
-            return "winter";
-        }
-
+        
         self.acceptAISuggestion = function () {
-            if (self.aiPrediction && self.aiPrediction.diagnosis) {
-                // Update UI
-                self.targetDiagnosis = self.aiPrediction.diagnosis;
-                
-                // Send feedback to training system
-                var feedbackData = {
-                    finalDiagnosis: self.aiPrediction.diagnosis,
-                    isCorrect: true,
-                    confidenceRating: 4,
-                    comments: "Doctor accepted AI suggestion",
-                    veterinarianId: 1  // TODO: Get actual vet ID
-                };
-                
-                // Send feedback API call
-                $http.post('/api/genai/diagnosis/1/feedback', feedbackData).then(function () {
-                    console.log('Feedback sent successfully');
-                }, function (error) {
+            if (!self.aiPrediction || !self.aiPrediction.diagnosis) {
+                return;
+            }
+            
+            if (!self.currentVeterinarianId) {
+                console.error('Cannot accept suggestion: No veterinarian ID');
+                return;
+            }
+            
+            // Update UI
+            self.targetDiagnosis = self.aiPrediction.diagnosis;
+            
+            // Calculate confidence rating based on AI prediction vs final diagnosis
+            var calculatedConfidence = DiagnosisService.calculateConfidenceRating(
+                self.aiPrediction,
+                self.aiPrediction.diagnosis,
+                true  // isCorrect = true for accept
+            );
+            
+            console.log('Calculated confidence rating for accept:', calculatedConfidence);
+            
+            // Create feedback data using service
+            var feedbackData = DiagnosisService.createFeedbackData(
+                self.aiPrediction.diagnosis,
+                true,
+                calculatedConfidence,  // Use calculated confidence
+                "Doctor accepted AI suggestion (confidence: " + calculatedConfidence + ")",
+                self.currentVeterinarianId
+            );
+            
+            // Use predictionId from response
+            var predictionId = self.aiPrediction.predictionId;
+            
+            DiagnosisService.sendFeedback(predictionId, feedbackData)
+                .then(function() {
+                    console.log('Feedback sent successfully for prediction:', predictionId);
+                })
+                .catch(function(error) {
                     console.error('Failed to send feedback:', error);
                 });
-                
-                // Clear AI prediction
-                self.aiPrediction = null;
-                self.aiError = null;
-            }
+            
+            // Clear AI prediction
+            self.aiPrediction = null;
+            self.aiError = null;
         };
-
+        
         self.rejectAISuggestion = function () {
-            if (self.aiPrediction && self.aiPrediction.diagnosis) {
-                // Send feedback to training system
-                var feedbackData = {
-                    finalDiagnosis: self.targetDiagnosis || "Unknown",
-                    isCorrect: false,
-                    confidenceRating: 2,
-                    comments: "Doctor rejected AI suggestion",
-                    veterinarianId: 1  // TODO: Get actual vet ID
-                };
-                
-                // Send feedback API call
-                $http.post('/api/genai/diagnosis/1/feedback', feedbackData).then(function () {
-                    console.log('Rejection feedback sent successfully');
-                }, function (error) {
+            if (!self.aiPrediction || !self.aiPrediction.diagnosis) {
+                return;
+            }
+            
+            if (!self.currentVeterinarianId) {
+                console.error('Cannot reject suggestion: No veterinarian ID');
+                return;
+            }
+            
+            // Calculate confidence rating based on AI prediction vs final diagnosis
+            var calculatedConfidence = DiagnosisService.calculateConfidenceRating(
+                self.aiPrediction,
+                self.targetDiagnosis || "Unknown diagnosis",  // Use doctor's final diagnosis
+                false  // isCorrect = false for reject
+            );
+            
+            console.log('Calculated confidence rating for reject:', calculatedConfidence);
+            
+            // Create feedback data using service
+            var feedbackData = DiagnosisService.createFeedbackData(
+                self.targetDiagnosis || null,
+                false,
+                calculatedConfidence,  // Use calculated confidence
+                "Doctor rejected AI suggestion (confidence: " + calculatedConfidence + ")",
+                self.currentVeterinarianId
+            );
+            
+            // Use predictionId from response
+            var predictionId = self.aiPrediction.predictionId;
+            
+            DiagnosisService.sendFeedback(predictionId, feedbackData)
+                .then(function() {
+                    console.log('Rejection feedback sent successfully for prediction:', predictionId);
+                })
+                .catch(function(error) {
                     console.error('Failed to send rejection feedback:', error);
                 });
-                
-                // Clear AI prediction
-                self.aiPrediction = null;
-                self.aiError = null;
-            }
+            
+            // Clear AI prediction
+            self.aiPrediction = null;
+            self.aiError = null;
         };
     }]);

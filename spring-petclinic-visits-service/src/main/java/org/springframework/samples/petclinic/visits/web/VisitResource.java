@@ -57,7 +57,7 @@ class VisitResource {
     @ResponseStatus(HttpStatus.CREATED)
     public Visit create(
         @Valid @RequestBody Visit visit,
-        @PathVariable("petId") @Min(1) int petId) {
+        @PathVariable("petId") @Min(0) int petId) {
 
         visit.setPetId(petId);
         log.info("Saving visit {}", visit);
@@ -65,7 +65,7 @@ class VisitResource {
     }
 
     @GetMapping("owners/*/pets/{petId}/visits")
-    public List<Visit> read(@PathVariable("petId") @Min(1) int petId) {
+    public List<Visit> read(@PathVariable("petId") @Min(0) int petId) {
         return visitRepository.findByPetId(petId);
     }
 

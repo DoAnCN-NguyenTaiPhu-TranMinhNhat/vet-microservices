@@ -2,9 +2,12 @@ package org.springframework.samples.petclinic.genai;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.samples.petclinic.genai.dto.AiDiagnosisRequest;
 import org.springframework.samples.petclinic.genai.dto.AiDiagnosisResponse;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
@@ -36,17 +39,20 @@ public class DiagnosisController {
         logger.info("Received diagnosis request for visit: {}, pet: {}, vet: {}", 
                    visitId, petId, veterinarianId);
         
-        if (visitId != null && petId != null && veterinarianId != null) {
-            // Full training integration
+        if (petId != null && veterinarianId != null && visitId != null) {
+            // Full training integration with visit
             return trainingClient.diagnoseWithTraining(request, visitId, petId, veterinarianId);
+        } else if (petId != null && veterinarianId != null) {
+            // Simple diagnosis without visit - still log for training
+            return trainingClient.diagnoseWithoutVisit(request, petId, veterinarianId);
         } else {
-            // Simple diagnosis without training
+            // Simple diagnosis without training (no predictionId)
             return Mono.fromCallable(() -> aiDiagnosisClient.predict(request));
         }
     }
 
     @PostMapping("/diagnosis/{predictionId}/feedback")
-    public Mono<Map<String, Object>> saveFeedback(@PathVariable Integer predictionId,
+    public Mono<Map<String, Object>> saveFeedback(@PathVariable Long predictionId,
                                                  @RequestBody FeedbackRequest feedback) {
         logger.info("Saving feedback for prediction: {}", predictionId);
         
@@ -124,5 +130,32 @@ public class DiagnosisController {
         
         public boolean isForce() { return force; }
         public void setForce(boolean force) { this.force = force; }
+    }
+
+    // Exception handlers to return consistent JSON error format
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatusException(ResponseStatusException ex) {
+        logger.error("ResponseStatusException: {}", ex.getMessage());
+        
+        Map<String, Object> errorResponse = Map.of(
+            "error", ex.getReason(),
+            "message", ex.getMessage(),
+            "status", ex.getStatusCode().value()
+        );
+        
+        return ResponseEntity.status(ex.getStatusCode()).body(errorResponse);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
+        logger.error("Unexpected error: {}", ex.getMessage(), ex);
+        
+        Map<String, Object> errorResponse = Map.of(
+            "error", "Internal Server Error",
+            "message", ex.getMessage() != null ? ex.getMessage() : "An unexpected error occurred",
+            "status", HttpStatus.INTERNAL_SERVER_ERROR.value()
+        );
+        
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }
 }

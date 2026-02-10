@@ -3,10 +3,14 @@ package org.springframework.samples.petclinic.genai;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.samples.petclinic.genai.dto.AiDiagnosisRequest;
 import org.springframework.samples.petclinic.genai.dto.AiDiagnosisResponse;
+import org.springframework.samples.petclinic.genai.dto.PredictionLogResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
@@ -34,9 +38,13 @@ public class ContinuousTrainingClient {
     /**
      * Log prediction to continuous training system
      */
-    public Mono<Void> logPrediction(AiDiagnosisRequest request, AiDiagnosisResponse response, 
+    public Mono<Long> logPrediction(AiDiagnosisRequest request, AiDiagnosisResponse response, 
                                     Integer visitId, Integer petId, Integer veterinarianId) {
+        // Generate unique ID using timestamp and random
+        long predictionId = System.currentTimeMillis() + (long)(Math.random() * 1000);
+        
         Map<String, Object> predictionLog = new HashMap<>();
+        predictionLog.put("id", predictionId);
         predictionLog.put("visit_id", visitId);
         predictionLog.put("pet_id", petId);
         Map<String, Object> inputMap = new HashMap<>();
@@ -59,36 +67,68 @@ public class ContinuousTrainingClient {
         
         predictionLog.put("prediction_input", inputMap);
         predictionLog.put("prediction_output", outputMap);
-        predictionLog.put("model_version", response.modelVersion());
-        predictionLog.put("confidence_score", response.confidence());
-        predictionLog.put("top_k_predictions", response.top_k());
+        predictionLog.put("model_version", response.modelVersion() != null ? response.modelVersion() : "v2.0");
+        
+        // Handle null confidence - default to 0.0 for validation
+        Double confidence = response.confidence();
+        predictionLog.put("confidence_score", confidence != null ? confidence.floatValue() : 0.0f);
+        
+        // Handle null top_k - default to empty list
+        predictionLog.put("top_k_predictions", response.top_k() != null ? response.top_k() : List.of());
         predictionLog.put("veterinarian_id", veterinarianId);
         predictionLog.put("clinic_id", 1); // Default clinic ID
+
+        logger.info("Sending prediction log to FastAPI: {}", predictionLog);
 
         return webClient
                 .post()
                 .uri("/continuous-training/predictions/log")
                 .bodyValue(predictionLog)
                 .retrieve()
-                .bodyToMono(Void.class)
-                .doOnSuccess(v -> logger.info("Prediction logged successfully for visit: {}", visitId))
-                .doOnError(e -> logger.error("Failed to log prediction: {}", e.getMessage()));
+                .bodyToMono(PredictionLogResponse.class)
+                .map(logResponse -> logResponse.getPredictionId())
+                .doOnSuccess(loggedPredictionId -> logger.info("Prediction logged successfully for visit: {}, predictionId: {}", visitId, loggedPredictionId))
+                .doOnError(e -> {
+                    logger.error("Failed to log prediction: {}", e.getMessage());
+                    if (e instanceof WebClientResponseException) {
+                        WebClientResponseException webEx = (WebClientResponseException) e;
+                        logger.error("FastAPI error response - Status: {}, Body: {}", 
+                                   webEx.getStatusCode(), webEx.getResponseBodyAsString());
+                    }
+                });
     }
 
     /**
      * Save doctor feedback for a prediction
      */
-    public Mono<Void> saveFeedback(Integer predictionId, String finalDiagnosis, boolean isCorrect,
+    public Mono<Void> saveFeedback(Long predictionId, String finalDiagnosis, boolean isCorrect,
                                   Integer confidenceRating, String comments, Integer veterinarianId) {
         Map<String, Object> feedback = new HashMap<>();
         feedback.put("prediction_id", predictionId);
         feedback.put("final_diagnosis", finalDiagnosis);
         feedback.put("is_correct", isCorrect);
-        feedback.put("confidence_rating", confidenceRating);
+        
+        // Validate confidence_rating - FastAPI requires 1-5, not 0-5
+        if (confidenceRating != null) {
+            if (confidenceRating < 1) {
+                logger.warn("Confidence rating {} is too low, setting to 1 (minimum allowed)", confidenceRating);
+                confidenceRating = 1;
+            } else if (confidenceRating > 5) {
+                logger.warn("Confidence rating {} is too high, setting to 5 (maximum allowed)", confidenceRating);
+                confidenceRating = 5;
+            }
+            feedback.put("confidence_rating", confidenceRating);
+            logger.info("Including validated confidence rating: {}", confidenceRating);
+        } else {
+            logger.info("No confidence rating provided - will use default null");
+        }
+        
         feedback.put("comments", comments);
         feedback.put("veterinarian_id", veterinarianId);
         feedback.put("is_training_eligible", true);
         feedback.put("data_quality_score", 1.0);
+
+        logger.info("Sending feedback request: {}", feedback);
 
         return webClient
                 .post()
@@ -97,7 +137,29 @@ public class ContinuousTrainingClient {
                 .retrieve()
                 .bodyToMono(Void.class)
                 .doOnSuccess(v -> logger.info("Feedback saved successfully for prediction: {}", predictionId))
-                .doOnError(e -> logger.error("Failed to save feedback: {}", e.getMessage()));
+                .doOnError(e -> {
+                    if (e instanceof WebClientResponseException) {
+                        WebClientResponseException webEx = (WebClientResponseException) e;
+                        logger.error("FastAPI feedback error - Status: {}, Body: {}", 
+                                   webEx.getStatusCode(), webEx.getResponseBodyAsString());
+                        
+                        if (webEx.getStatusCode() == HttpStatus.UNPROCESSABLE_ENTITY) {
+                            logger.error("FastAPI 422 validation error in feedback: {}", webEx.getResponseBodyAsString());
+                        }
+                    } else {
+                        logger.error("Failed to save feedback: {}", e.getMessage(), e);
+                    }
+                })
+                .onErrorMap(WebClientResponseException.class, e -> {
+                    if (e.getStatusCode() == HttpStatus.UNPROCESSABLE_ENTITY) {
+                        String responseBody = e.getResponseBodyAsString();
+                        logger.error("FastAPI 422 validation error in feedback: {}", responseBody);
+                        return new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, 
+                            "FastAPI feedback validation error: " + responseBody, e);
+                    }
+                    return new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                        "Failed to save feedback: " + e.getMessage(), e);
+                });
     }
 
     /**
@@ -165,16 +227,55 @@ public class ContinuousTrainingClient {
         .flatMap(response -> {
             // 2. Log prediction for training
             return logPrediction(request, response, visitId, petId, veterinarianId)
-                    .thenReturn(response);
+                    .map(predictionId -> {
+                        // Create new response with predictionId
+                        return new AiDiagnosisResponse(
+                            response.diagnosis(),
+                            response.confidence(),
+                            response.top_k(),
+                            response.modelVersion(),
+                            response.predictions(),
+                            predictionId
+                        );
+                    });
         })
-        .doOnSuccess(response -> logger.info("Diagnosis completed and logged for visit: {}", visitId))
+        .doOnSuccess((AiDiagnosisResponse response) -> logger.info("Diagnosis completed and logged for visit: {}, predictionId: {}", visitId, response.predictionId()))
         .doOnError(e -> logger.error("Diagnosis failed for visit {}: {}", visitId, e.getMessage()));
+    }
+
+    /**
+     * Diagnosis without visit - still log for training with null visitId
+     */
+    public Mono<AiDiagnosisResponse> diagnoseWithoutVisit(AiDiagnosisRequest request, 
+                                                         Integer petId, Integer veterinarianId) {
+        // 1. Get AI diagnosis
+        return Mono.fromCallable(() -> {
+            AiDiagnosisClient aiClient = new AiDiagnosisClient(aiServiceUrl);
+            return aiClient.predict(request);
+        })
+        .flatMap(response -> {
+            // 2. Log prediction for training with null visitId
+            return logPrediction(request, response, null, petId, veterinarianId)
+                    .map(predictionId -> {
+                        // Create new response with predictionId
+                        return new AiDiagnosisResponse(
+                            response.diagnosis(),
+                            response.confidence(),
+                            response.top_k(),
+                            response.modelVersion(),
+                            response.predictions(),
+                            predictionId
+                        );
+                    });
+        })
+        .doOnSuccess((AiDiagnosisResponse response) -> logger.info("Diagnosis completed and logged for pet: {}, predictionId: {}", petId, response.predictionId()))
+        .doOnError(e -> logger.error("Diagnosis failed for pet {}: {}", petId, e.getMessage()));
     }
 
     /**
      * Process final diagnosis with feedback and auto-training check
      */
-    public Mono<Map<String, Object>> processFinalDiagnosis(Integer predictionId, String finalDiagnosis,
+    public Mono<Map<String, Object>> processFinalDiagnosis(Long predictionId, String finalDiagnosis,
                                                           boolean isCorrect, Integer confidenceRating,
                                                           String comments, Integer veterinarianId) {
         // 1. Save feedback

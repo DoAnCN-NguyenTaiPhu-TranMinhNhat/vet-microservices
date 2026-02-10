@@ -20,6 +20,7 @@ import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFac
 import org.springframework.samples.petclinic.api.application.CustomersServiceClient;
 import org.springframework.samples.petclinic.api.application.VisitsServiceClient;
 import org.springframework.samples.petclinic.api.dto.OwnerDetails;
+import org.springframework.samples.petclinic.api.dto.VisitDetails;
 import org.springframework.samples.petclinic.api.dto.Visits;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,13 +29,14 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
  * @author Maciej Szarlinski
  */
 @RestController
-@RequestMapping("/api/gateway")
+@RequestMapping("/api")
 public class ApiGatewayController {
 
     private final CustomersServiceClient customersServiceClient;
@@ -62,7 +64,18 @@ public class ApiGatewayController {
                     })
                     .map(addVisitsToOwner(owner))
             );
-
+    }
+    
+    @GetMapping(value = "/user/current")
+    public Mono<Map<String, Object>> getCurrentUser() {
+        // Mock user for testing
+        Map<String, Object> user = Map.of(
+            "id", 1,
+            "username", "test.vet",
+            "veterinarianId", 1,
+            "name", "Test Veterinarian"
+        );
+        return Mono.just(user);
     }
 
     private Function<Visits, OwnerDetails> addVisitsToOwner(OwnerDetails owner) {

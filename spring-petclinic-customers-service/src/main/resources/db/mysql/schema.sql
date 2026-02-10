@@ -2,6 +2,19 @@ CREATE DATABASE IF NOT EXISTS petclinic;
 
 USE petclinic;
 
+-- Create sequences for ID generation starting from 1
+CREATE TABLE IF NOT EXISTS owner_sequence (
+  next_val INT(4) UNSIGNED NOT NULL PRIMARY KEY
+) engine=InnoDB;
+
+INSERT IGNORE INTO owner_sequence (next_val) VALUES (1);
+
+CREATE TABLE IF NOT EXISTS pet_sequence (
+  next_val INT(4) UNSIGNED NOT NULL PRIMARY KEY
+) engine=InnoDB;
+
+INSERT IGNORE INTO pet_sequence (next_val) VALUES (1);
+
 CREATE TABLE IF NOT EXISTS types (
   id INT(4) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(80),

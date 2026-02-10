@@ -1,6 +1,6 @@
 'use strict';
 
-angular.module('visits', ['ui.router'])
+angular.module('visits', ['ui.router', 'core'])
     .config(['$stateProvider', function ($stateProvider) {
         $stateProvider
             .state('visits', {
