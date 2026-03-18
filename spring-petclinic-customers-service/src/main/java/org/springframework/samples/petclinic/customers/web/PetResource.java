@@ -73,6 +73,30 @@ class PetResource {
         save(pet, petRequest);
     }
 
+    @DeleteMapping("/owners/{ownerId}/pets/{petId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletePet(
+        @PathVariable("ownerId") @Min(1) int ownerId,
+        @PathVariable("petId") int petId
+    ) {
+        Owner owner = ownerRepository.findById(ownerId)
+            .orElseThrow(() -> new ResourceNotFoundException("Owner " + ownerId + " not found"));
+
+        Pet pet = petRepository.findById(petId)
+            .orElseThrow(() -> new ResourceNotFoundException("Pet " + petId + " not found"));
+
+        if (pet.getOwner() == null || pet.getOwner().getId() == null || pet.getOwner().getId() != owner.getId()) {
+            throw new ResourceNotFoundException("Pet " + petId + " not found for owner " + ownerId);
+        }
+
+        // HSQLDB identity can generate id=0; Hibernate may treat 0 specially in entity remove.
+        // Use a hard JPQL delete to guarantee removal.
+        int deleted = petRepository.hardDeleteById(petId);
+        if (deleted == 0) {
+            throw new ResourceNotFoundException("Pet " + petId + " not found");
+        }
+    }
+
     private Pet save(final Pet pet, final PetRequest petRequest) {
 
         pet.setName(petRequest.name());

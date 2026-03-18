@@ -39,8 +39,7 @@ import java.util.*;
 public class Owner {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY, generator = "owner_seq")
-    @SequenceGenerator(name = "owner_seq", sequenceName = "owner_sequence", initialValue = 1, allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
     @Column(name = "first_name")
@@ -61,7 +60,8 @@ public class Owner {
 
     @Column(name = "telephone")
     @NotBlank
-    @Digits(fraction = 0, integer = 12)
+    // Cho phép số điện thoại có mã quốc gia + khoảng trắng, ví dụ: "+84 0335190759"
+    @jakarta.validation.constraints.Pattern(regexp = "^[+0-9][0-9 ]{3,19}$")
     private String telephone;
 
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, mappedBy = "owner")

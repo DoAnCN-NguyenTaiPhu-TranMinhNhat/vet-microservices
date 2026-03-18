@@ -89,4 +89,16 @@ class OwnerResource {
         log.info("Saving owner {}", ownerModel);
         ownerRepository.save(ownerModel);
     }
+
+    /**
+     * Delete Owner
+     */
+    @DeleteMapping(value = "/{ownerId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteOwner(@PathVariable("ownerId") @Min(1) int ownerId) {
+        if (!ownerRepository.existsById(ownerId)) {
+            throw new ResourceNotFoundException("Owner " + ownerId + " not found");
+        }
+        ownerRepository.deleteById(ownerId);
+    }
 }

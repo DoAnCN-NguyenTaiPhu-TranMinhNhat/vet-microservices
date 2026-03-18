@@ -19,8 +19,10 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Repository class for <code>Pet</code> domain objects All method names are compliant with Spring Data naming
@@ -44,6 +46,10 @@ public interface PetRepository extends JpaRepository<Pet, Integer> {
     @Query("FROM PetType ptype WHERE ptype.id = :typeId")
     Optional<PetType> findPetTypeById(@Param("typeId") int typeId);
 
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM Pet p WHERE p.id = :petId")
+    int hardDeleteById(@Param("petId") int petId);
 
 }
 

@@ -27,8 +27,21 @@
     
     <div class="form-group">
         <label>Telephone</label>
-        <input class="form-control" ng-model="$ctrl.owner.telephone" pattern="[0-9]{12}" placeholder="905554443322"
-               name="telephone" maxlength="12" required/>
+        <div class="input-group">
+            <span class="input-group-text p-0">
+                <select class="form-select border-0"
+                        ng-model="$ctrl.selectedCountry"
+                        ng-options="c as (c.code + ' - ' + c.name) for c in $ctrl.countries"
+                        style="min-width: 11em;">
+                </select>
+            </span>
+            <input class="form-control"
+                   ng-model="$ctrl.localPhone"
+                   name="telephone"
+                   placeholder="0335190759"
+                   maxlength="20"
+                   required/>
+        </div>
         <span ng-show="ownerForm.telephone.$error.required" class="help-block">Telephone is required.</span>
     </div>
     

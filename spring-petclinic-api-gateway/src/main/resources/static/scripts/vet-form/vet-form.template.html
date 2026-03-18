@@ -1,0 +1,28 @@
+<h2>Veterinarian</h2>
+<form ng-submit="$ctrl.submitVetForm()" style="max-width: 30em;">
+    <div class="form-group">
+        <label>First name</label>
+        <input class="form-control" ng-model="$ctrl.vet.firstName" name="firstName" required/>
+    </div>
+
+    <div class="form-group">
+        <label>Last name</label>
+        <input class="form-control" ng-model="$ctrl.vet.lastName" name="lastName" required/>
+    </div>
+
+    <div class="form-group" ng-if="$ctrl.specialties.length">
+        <label>Specialties</label>
+        <div class="checkbox" ng-repeat="s in $ctrl.specialties">
+            <label>
+                <input type="checkbox" ng-model="$ctrl.selectedSpecialtyIds[s.id]">
+                {{s.name}}
+            </label>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <button class="btn btn-primary" type="submit">Submit</button>
+        <a class="btn btn-default" ui-sref="vets">Cancel</a>
+    </div>
+</form>
+

@@ -23,6 +23,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.samples.petclinic.vets.model.Vet;
 import org.springframework.samples.petclinic.vets.model.VetRepository;
+import org.springframework.samples.petclinic.vets.model.SpecialtyRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
@@ -46,6 +47,9 @@ class VetResourceTest {
 
     @MockBean
     VetRepository vetRepository;
+
+    @MockBean
+    SpecialtyRepository specialtyRepository;
 
     @Test
     void shouldGetAListOfVets() throws Exception {

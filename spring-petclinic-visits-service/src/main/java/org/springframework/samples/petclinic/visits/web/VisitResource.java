@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.samples.petclinic.visits.model.Visit;
 import org.springframework.samples.petclinic.visits.model.VisitRepository;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -67,6 +68,13 @@ class VisitResource {
     @GetMapping("owners/*/pets/{petId}/visits")
     public List<Visit> read(@PathVariable("petId") @Min(0) int petId) {
         return visitRepository.findByPetId(petId);
+    }
+
+    // Delete all visits for a given pet (used for sync delete when pet is removed)
+    @DeleteMapping("pets/{petId}/visits")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteByPet(@PathVariable("petId") @Min(0) int petId) {
+        visitRepository.deleteByPetId(petId);
     }
 
     @GetMapping("pets/visits")

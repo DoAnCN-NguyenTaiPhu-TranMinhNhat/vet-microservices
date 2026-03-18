@@ -1,17 +1,79 @@
 'use strict';
 
 angular.module('ownerDetails')
-    .controller('OwnerDetailsController', ['$http', '$stateParams', function ($http, $stateParams) {
+    .controller('OwnerDetailsController', ['$http', '$state', '$stateParams', '$timeout', function ($http, $state, $stateParams, $timeout) {
         var self = this;
+        self.loading = true;
+        self.notFound = false;
 
-        $http.get('api/customer/owners/' + $stateParams.ownerId).then(function (resp) {
-            self.owner = resp.data;
-            console.log('OwnerDetailsController: Owner loaded:', self.owner);
-            console.log('OwnerDetailsController: Pets data:', self.owner.pets);
-            if (self.owner.pets) {
-                self.owner.pets.forEach(function(pet, index) {
-                    console.log('OwnerDetailsController: Pet[' + index + '] - ID:', pet.id, 'Name:', pet.name);
-                });
+        function loadOwner() {
+            self.loading = true;
+            self.notFound = false;
+            // cache-buster to avoid any intermediate caching after mutations
+            var url = 'api/customer/owners/' + $stateParams.ownerId + '?_=' + Date.now();
+            $http.get(url).then(function (resp) {
+                self.owner = resp.data;
+                self.loading = false;
+            }).catch(function (err) {
+                self.loading = false;
+                if (err && err.status === 404) {
+                    self.notFound = true;
+                    self.owner = null;
+                    // Redirect back to owners after a short delay
+                    $timeout(function () {
+                        $state.go('owners');
+                    }, 1500);
+                }
+            });
+        }
+
+        self.deleteOwner = function ($event) {
+            if ($event) {
+                if ($event.preventDefault) $event.preventDefault();
+                if ($event.stopPropagation) $event.stopPropagation();
             }
-        });
+            console.log('Owner delete clicked:', $stateParams.ownerId);
+            if (!self.owner || !self.owner.id) return;
+            if (!confirm('Delete this owner and all pets?')) return;
+            $http.delete('api/customer/owners/' + $stateParams.ownerId).then(function () {
+                $state.go('owners');
+            }).catch(function (err) {
+                alert('Delete owner failed (' + (err.status || 'unknown') + ')');
+                console.log('Delete owner failed:', err);
+            });
+        };
+
+        self.deletePet = function ($event, petId) {
+            if ($event && $event.preventDefault) $event.preventDefault();
+            if ($event && $event.stopPropagation) $event.stopPropagation();
+            console.log('Pet delete clicked:', petId);
+            if (petId === undefined || petId === null || petId === '') {
+                alert('Invalid pet id: ' + petId);
+                return;
+            }
+            if (!confirm('Delete this pet?')) return;
+            var pid = Number(petId);
+            // Sync delete (like owner logic): delete visits first, then delete pet.
+            // Important: do NOT use finally() for chaining because AngularJS ignores returned promise in finally().
+            $http.delete('api/visit/pets/' + pid + '/visits')
+                .catch(function (err) {
+                    // If visits-service is down, still allow pet deletion but warn
+                    console.log('Delete visits failed (continuing):', err);
+                })
+                .then(function () {
+                    return $http.delete('api/customer/owners/' + $stateParams.ownerId + '/pets/' + pid);
+                })
+                .then(function () {
+                // optimistic UI update in case reload is delayed
+                if (self.owner && Array.isArray(self.owner.pets)) {
+                    self.owner.pets = self.owner.pets.filter(function (p) { return p && Number(p.id) !== pid; });
+                }
+                loadOwner();
+            }).catch(function (err) {
+                alert('Delete pet failed (' + (err.status || 'unknown') + ')');
+                console.log('Delete pet failed:', err);
+            });
+        };
+
+        loadOwner();
     }]);

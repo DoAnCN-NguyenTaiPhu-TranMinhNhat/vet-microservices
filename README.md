@@ -22,7 +22,7 @@ If everything goes well, you can access the following services at given location
 * AngularJS frontend (API Gateway) - http://localhost:8080
 * Customers, Vets, Visits and GenAI Services - random port, check Eureka Dashboard 
 * Tracing Server (Zipkin) - http://localhost:9411/zipkin/ (we use [openzipkin](https://github.com/openzipkin/zipkin/tree/main/zipkin-server))
-* Admin Server (Spring Boot Admin) - http://localhost:9090
+* Admin Server (Spring Boot Admin) - http://localhost:9092 (docker-compose; khi chạy local không Docker: 9090)
 * Grafana Dashboards - http://localhost:3030
 * Prometheus - http://localhost:9091
 

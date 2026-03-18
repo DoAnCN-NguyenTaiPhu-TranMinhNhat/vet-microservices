@@ -1,3 +1,7 @@
+<div ng-if="$ctrl.loading" class="alert alert-info">Loading owner...</div>
+<div ng-if="$ctrl.notFound" class="alert alert-warning">Owner not found. Redirecting...</div>
+
+<div ng-if="!$ctrl.loading && !$ctrl.notFound">
 <h2>Owner Information</h2>
 
 <table class="table table-striped">
@@ -19,36 +23,52 @@
     </tr>
     <tr>
         <td>
-            <a class="btn btn-primary" ui-sref="ownerEdit({ownerId: $ctrl.owner.id})">Edit Owner</a>
+            <div class="btn-group align-middle" role="group">
+                <a class="btn btn-outline-primary btn-sm" ui-sref="ownerEdit({ownerId: $ctrl.owner.id})" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Edit Owner</a>
+                <button class="btn btn-outline-danger btn-sm" type="button" ng-click="$ctrl.deleteOwner($event)" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Delete Owner</button>
+            </div>
         </td>
         <td>
-            <a ui-sref="petNew({ownerId: $ctrl.owner.id})" class="btn btn-primary">Add New Pet</a>
+            <a ui-sref="petNew({ownerId: $ctrl.owner.id})" class="btn btn-primary btn-sm" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Add New Pet</a>
         </td>
     </tr>
 </table>
 
 <h2>Pets and Visits</h2>
 
-<table class="table table-striped">
-    <tr ng-repeat="pet in $ctrl.owner.pets track by pet.id">
-        <td valign="top">
-            <dl class="dl-horizontal">
-                <dt>Name</dt>
-                <dd><a ui-sref="petEdit({ownerId: $ctrl.owner.id, petId: pet.id})">{{pet.name}} (ID: {{pet.id}})</a></dd>
-                <dt>Birth Date</dt>
-                <dd>{{pet.birthDate | date:'yyyy MMM dd'}}</dd>
-                <dt>Type</dt>
-                <dd>{{pet.type.name}}</dd>
-                <dt>Gender</dt>
-                <dd>{{pet.gender || '-'}}</dd>
-                <dt>Vaccination</dt>
-                <dd>{{pet.vaccinationStatus || '-'}}</dd>
-                <dt>Medical Notes</dt>
-                <dd>{{pet.medicalNotes || '-'}}</dd>
-            </dl>
+<table class="table table-striped align-middle">
+    <thead>
+    <tr>
+        <th>Pet</th>
+        <th>Birth date</th>
+        <th>Type</th>
+        <th>Gender</th>
+        <th>Vaccination</th>
+        <th>Notes</th>
+        <th style="width: 18em;">Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr ng-repeat-start="pet in $ctrl.owner.pets track by pet.id">
+        <td><b>{{pet.name}}</b> <span class="text-muted">(ID: {{pet.id}})</span></td>
+        <td>{{pet.birthDate | date:'yyyy MMM dd'}}</td>
+        <td>{{pet.type.name}}</td>
+        <td>{{pet.gender || '-'}}</td>
+        <td>{{pet.vaccinationStatus || '-'}}</td>
+        <td>{{pet.medicalNotes || '-'}}</td>
+        <td>
+            <div class="btn-group" role="group">
+                <a class="btn btn-outline-primary btn-sm" ui-sref="petEdit({ownerId: $ctrl.owner.id, petId: pet.id})">Edit</a>
+                <a class="btn btn-outline-primary btn-sm" ui-sref="visits({ownerId: $ctrl.owner.id, petId: pet.id})">Add visit</a>
+                <button type="button"
+                        class="btn btn-danger btn-sm"
+                        ng-click="$ctrl.deletePet($event, pet.id)">Delete</button>
+            </div>
         </td>
-        <td valign="top">
-            <table class="table-condensed">
+    </tr>
+    <tr ng-repeat-end>
+        <td colspan="7">
+            <table class="table table-sm mb-0" ng-if="pet.visits && pet.visits.length">
                 <thead>
                 <tr>
                     <th>Visit Date</th>
@@ -58,35 +78,23 @@
                     <th>Diagnosis</th>
                 </tr>
                 </thead>
+                <tbody>
                 <tr ng-repeat="visit in pet.visits track by visit.id">
                     <td>{{visit.date | date:'yyyy MMM dd'}}</td>
                     <td>{{visit.description}}</td>
-                    <td>
-                        <span ng-if="visit.temperature">{{visit.temperature}}°C</span>
-                        <span ng-if="!visit.temperature" class="text-muted">-</span>
-                    </td>
-                    <td>
-                        <span ng-if="visit.weightKg">{{visit.weightKg}} kg</span>
-                        <span ng-if="!visit.weightKg" class="text-muted">-</span>
-                    </td>
-                    <td>
-                        <span ng-if="visit.targetDiagnosis" class="badge badge-info">{{visit.targetDiagnosis}}</span>
-                        <span ng-if="!visit.targetDiagnosis" class="text-muted">-</span>
-                    </td>
+                    <td>{{visit.temperature || '-'}}</td>
+                    <td><span ng-if="visit.weightKg">{{visit.weightKg}} kg</span><span ng-if="!visit.weightKg">-</span></td>
+                    <td>{{visit.targetDiagnosis || '-'}}</td>
                 </tr>
-                <tr>
-                    <td>
-                        <a ui-sref="petEdit({ownerId: $ctrl.owner.id, petId: pet.id})">Edit Pet</a>
-                    </td>
-                    <td>
-                        <a ui-sref="visits({ownerId: $ctrl.owner.id, petId: pet.id})" 
-                           ng-click="console.log('Clicking Add Visit for pet:', pet.name, 'ID:', pet.id)">Add Visit (ID: {{pet.id}})</a>
-                    </td>
-                </tr>
+                </tbody>
             </table>
+            <span class="text-muted" ng-if="!pet.visits || !pet.visits.length">No visits yet.</span>
         </td>
     </tr>
+    </tbody>
 </table>
+
+</div>
 
 
 

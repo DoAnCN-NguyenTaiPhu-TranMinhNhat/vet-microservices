@@ -36,8 +36,7 @@ import java.util.Objects;
 @Table(name = "pets")
 public class Pet {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY, generator = "pet_seq")
-    @SequenceGenerator(name = "pet_seq", sequenceName = "pet_sequence", initialValue = 1, allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
     @Column(name = "name")

@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Repository class for <code>Visit</code> domain objects All method names are compliant with Spring Data naming conventions so this interface can easily be extended for Spring
@@ -35,4 +36,7 @@ public interface VisitRepository extends JpaRepository<Visit, Integer> {
     List<Visit> findByPetId(int petId);
 
     List<Visit> findByPetIdIn(Collection<Integer> petIds);
+
+    @Transactional
+    void deleteByPetId(int petId);
 }
