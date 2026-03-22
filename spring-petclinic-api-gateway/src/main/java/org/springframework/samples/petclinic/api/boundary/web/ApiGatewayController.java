@@ -22,10 +22,12 @@ import org.springframework.samples.petclinic.api.application.VisitsServiceClient
 import org.springframework.samples.petclinic.api.dto.OwnerDetails;
 import org.springframework.samples.petclinic.api.dto.VisitDetails;
 import org.springframework.samples.petclinic.api.dto.Visits;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -56,6 +58,7 @@ public class ApiGatewayController {
     @GetMapping(value = "owners/{ownerId}")
     public Mono<OwnerDetails> getOwnerDetails(final @PathVariable int ownerId) {
         return customersServiceClient.getOwner(ownerId)
+            .onErrorMap(WebClientResponseException.class, e -> mapDownstreamHttpError("customers-service", e))
             .flatMap(owner ->
                 visitsServiceClient.getVisitsForPets(owner.getPetIds())
                     .transform(it -> {
@@ -92,5 +95,17 @@ public class ApiGatewayController {
 
     private Mono<Visits> emptyVisitsForPets() {
         return Mono.just(new Visits(List.of()));
+    }
+
+    private ResponseStatusException mapDownstreamHttpError(String serviceName, WebClientResponseException e) {
+        // Contract: propagate meaningful 4xx; mask 5xx as 502 to avoid leaking internals.
+        if (e.getStatusCode().is4xxClientError()) {
+            return new ResponseStatusException(e.getStatusCode(), e.getStatusText(), e);
+        }
+        return new ResponseStatusException(
+            org.springframework.http.HttpStatus.BAD_GATEWAY,
+            serviceName + " error (" + e.getStatusCode().value() + ")",
+            e
+        );
     }
 }

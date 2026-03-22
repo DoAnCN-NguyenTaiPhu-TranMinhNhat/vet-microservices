@@ -29,9 +29,14 @@ public class ContinuousTrainingClient {
     
     private final WebClient webClient;
     private final String aiServiceUrl;
+    private final String adminToken;
 
-    public ContinuousTrainingClient(@Value("${vetai.diagnosis.url:http://localhost:8000}") String aiServiceUrl) {
+    public ContinuousTrainingClient(
+        @Value("${vetai.diagnosis.url:http://localhost:8000}") String aiServiceUrl,
+        @Value("${vetai.admin.token:}") String adminToken
+    ) {
         this.aiServiceUrl = aiServiceUrl;
+        this.adminToken = adminToken;
         this.webClient = WebClient.builder().baseUrl(aiServiceUrl).build();
     }
 
@@ -190,6 +195,11 @@ public class ContinuousTrainingClient {
         return webClient
                 .post()
                 .uri("/continuous-training/training/trigger")
+                .headers(h -> {
+                    if (adminToken != null && !adminToken.isBlank()) {
+                        h.setBearerAuth(adminToken);
+                    }
+                })
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(Map.class)

@@ -35,7 +35,7 @@ angular.module('ownerDetails')
             console.log('Owner delete clicked:', $stateParams.ownerId);
             if (!self.owner || !self.owner.id) return;
             if (!confirm('Delete this owner and all pets?')) return;
-            $http.delete('api/customer/owners/' + $stateParams.ownerId).then(function () {
+            $http.delete('api/orch/owners/' + $stateParams.ownerId).then(function () {
                 $state.go('owners');
             }).catch(function (err) {
                 alert('Delete owner failed (' + (err.status || 'unknown') + ')');
@@ -53,17 +53,7 @@ angular.module('ownerDetails')
             }
             if (!confirm('Delete this pet?')) return;
             var pid = Number(petId);
-            // Sync delete (like owner logic): delete visits first, then delete pet.
-            // Important: do NOT use finally() for chaining because AngularJS ignores returned promise in finally().
-            $http.delete('api/visit/pets/' + pid + '/visits')
-                .catch(function (err) {
-                    // If visits-service is down, still allow pet deletion but warn
-                    console.log('Delete visits failed (continuing):', err);
-                })
-                .then(function () {
-                    return $http.delete('api/customer/owners/' + $stateParams.ownerId + '/pets/' + pid);
-                })
-                .then(function () {
+            $http.delete('api/orch/owners/' + $stateParams.ownerId + '/pets/' + pid).then(function () {
                 // optimistic UI update in case reload is delayed
                 if (self.owner && Array.isArray(self.owner.pets)) {
                     self.owner.pets = self.owner.pets.filter(function (p) { return p && Number(p.id) !== pid; });

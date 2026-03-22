@@ -208,8 +208,18 @@ services:
     networks: [petclinic-net]
     ports:
       - "8000:8000"
+    env_file:
+      - ../vet-infra/.env
+    volumes:
+      - ../vet-ml/data/vet-ai-project/veterinary_full_data_10000.csv:/app/baseline/veterinary_full_data_10000.csv:ro
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
+      # Prefer values from env_file; keep sane defaults for local
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
+      MODEL_DIR: ${MODEL_DIR:-/app/ai_service/models/v2}
+      MODEL_ROOT_DIR: ${MODEL_ROOT_DIR:-/app/ai_service/models}
+      FINETUNE_PREVIOUS_MODEL: ${FINETUNE_PREVIOUS_MODEL:-true}
+      FINETUNE_ADD_TREES: ${FINETUNE_ADD_TREES:-20}
     depends_on:
       mlflow:
         condition: service_healthy
@@ -225,9 +235,12 @@ services:
     networks: [petclinic-net]
     ports:
       - "8090:8084"
+    env_file:
+      - ../vet-infra/.env
     environment:
       SPRING_PROFILES_ACTIVE: docker
       VETAI_DIAGNOSIS_URL: http://vet-ai:8000
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
     deploy:
       resources:
         limits:
@@ -242,8 +255,11 @@ services:
       dockerfile: Dockerfile.training
     container_name: vet-ai-training
     networks: [petclinic-net]
+    env_file:
+      - ../vet-infra/.env
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
       DATA_SOURCE: api
       API_BASE_URL: http://vet-ai:8000
     volumes:

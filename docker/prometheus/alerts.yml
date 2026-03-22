@@ -1,0 +1,40 @@
+groups:
+  - name: petclinic-mvp-alerts
+    rules:
+      - alert: High5xxRate
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[2m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx rate"
+          description: "5xx responses > 1 rps (2m) across services"
+
+      - alert: HighRequestLatencyP95
+        # p95 over 5m across all services; if histogram not present, this alert stays inactive
+        expr: histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency (p95)"
+          description: "p95 latency > 1s for 5 minutes"
+
+      - alert: VetAITrainingFailed
+        expr: vetai_training_jobs{status="failed"} > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Vet-AI training job failed"
+          description: "At least one training job is in failed state"
+
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus target down"
+          description: "One or more scrape targets are down for >2 minutes"
+

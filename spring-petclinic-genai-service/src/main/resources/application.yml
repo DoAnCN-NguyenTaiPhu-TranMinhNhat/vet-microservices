@@ -29,6 +29,8 @@ spring:
 vetai:
   diagnosis:
     url: ${VETAI_DIAGNOSIS_URL:http://localhost:8000}
+  admin:
+    token: ${ADMIN_TOKEN:}
 
 
 logging:
@@ -58,3 +60,5 @@ eureka:
 vetai:
   diagnosis:
     url: ${VETAI_DIAGNOSIS_URL:http://vet-ai:8000}
+  admin:
+    token: ${ADMIN_TOKEN:}
