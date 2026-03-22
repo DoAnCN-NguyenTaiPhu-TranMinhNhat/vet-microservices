@@ -13,7 +13,9 @@ permissions:
   packages: write
 
 env:
-  GHCR_IMAGE_PREFIX: ghcr.io/doancn-nguyentaiphu-tranminhnhat/vet-ai-spring
+  # Tên package dưới ghcr.io — GITHUB_TOKEN chỉ được ghi nếu namespace = owner của repo (chữ thường).
+  # Nếu cần push sang org/package khác, tạo PAT (write:packages) và dùng secrets.GHCR_PUSH_TOKEN (xem bước login bên dưới).
+  GHCR_PACKAGE_SUFFIX: vet-ai-spring
 
 jobs:
   test:
@@ -58,7 +60,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Build JARs + Docker images (Maven buildDocker)
         run: |
