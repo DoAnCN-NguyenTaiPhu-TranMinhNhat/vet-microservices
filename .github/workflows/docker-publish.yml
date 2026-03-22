@@ -1,18 +1,15 @@
-# Giống vet-ai/.github/workflows/docker-publish.yml — chỉ build & push GHCR (không chạy test)
 name: Build & Push Docker (vet-microservices)
 
 on:
   push:
     branches: ["main"]
-  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
 env:
-  # ghcr.io/<owner lowercase>/vet-ai-spring/<service> — khớp podman push local
-  GHCR_PACKAGE_SUFFIX: vet-ai-spring
+  GHCR_PACKAGE_PREFIX: ghcr.io/doancn-nguyentaiphu-tranminhnhat/vet-ai-spring
 
 jobs:
   build-and-push:
@@ -22,47 +19,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Install Podman
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Login GHCR with PAT
+        run: |
+          echo "${{ secrets.GHCR_TOKEN }}" | podman login ghcr.io \
+            -u doancn-nguyentaiphu-tranminhnhat \
+            --password-stdin
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
-          cache: "maven"
+          cache: maven
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Resolve GHCR image prefix (owner lowercase)
+      - name: Build images with Maven
         run: |
-          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          PREFIX="ghcr.io/${OWNER_LC}/${{ env.GHCR_PACKAGE_SUFFIX }}"
-          echo "GHCR_IMAGE_PREFIX=${PREFIX}" >> "$GITHUB_ENV"
-          echo "Using GHCR_IMAGE_PREFIX=${PREFIX}"
+          mvn clean install \
+            -PbuildDocker \
+            -Dcontainer.executable=podman \
+            -Ddocker.image.prefix=${{ env.GHCR_PACKAGE_PREFIX }}
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull base image (Dockerfile FROM)
-        run: docker pull docker.io/eclipse-temurin:17
-
-      - name: Build JARs + Docker images (Maven buildDocker)
-        env:
-          DOCKER_BUILDKIT: "1"
+      # Push images
+      - name: Push images
         run: |
-          mvn -B -ntp -e clean install -PbuildDocker -DskipTests \
-            -Ddocker.image.prefix="${{ env.GHCR_IMAGE_PREFIX }}" \
-            -Dcontainer.executable=docker \
-            -Dcontainer.build.extraarg=--progress=plain
-
-      - name: Tag and push all microservice images
-        env:
-          SHORT_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
           SERVICES=(
             spring-petclinic-config-server
             spring-petclinic-discovery-server
@@ -73,11 +58,10 @@ jobs:
             spring-petclinic-visits-service
             spring-petclinic-genai-service
           )
-          PREFIX="${{ env.GHCR_IMAGE_PREFIX }}"
-          SHA_TAG="${SHORT_SHA:0:12}"
+
+          PREFIX=${{ env.GHCR_PACKAGE_PREFIX }}
+
           for s in "${SERVICES[@]}"; do
-            echo "=== Pushing ${s} ==="
-            docker tag "${PREFIX}/${s}:latest" "${PREFIX}/${s}:${SHA_TAG}"
-            docker push "${PREFIX}/${s}:latest"
-            docker push "${PREFIX}/${s}:${SHA_TAG}"
+            echo "🚀 Pushing $s"
+            podman push ${PREFIX}/${s}:latest
           done
