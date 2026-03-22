@@ -19,7 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Install Podman
       - name: Install Podman
         run: |
           sudo apt-get update
@@ -45,9 +44,35 @@ jobs:
             -Dcontainer.executable=podman \
             -Ddocker.image.prefix=${{ env.GHCR_PACKAGE_PREFIX }}
 
-      # Push images
-      - name: Push images
+      - name: Push images (sequential + retry + delay)
         run: |
+          set -euo pipefail
+
+          push_with_retry() {
+            local img="$1"
+            local max_attempts=7
+            local wait=30
+            local attempt=1
+
+            while [ "$attempt" -le "$max_attempts" ]; do
+              if podman push "$img"; then
+                echo "Push success: $img"
+                return 0
+              fi
+
+              echo "Push failed attempt $attempt/$max_attempts: $img"
+
+              if [ "$attempt" -eq "$max_attempts" ]; then
+                echo "Push failed permanently: $img"
+                return 1
+              fi
+
+              sleep "$wait"
+              attempt=$((attempt + 1))
+              wait=$((wait + 20))
+            done
+          }
+
           SERVICES=(
             spring-petclinic-config-server
             spring-petclinic-discovery-server
@@ -59,9 +84,10 @@ jobs:
             spring-petclinic-genai-service
           )
 
-          PREFIX=${{ env.GHCR_PACKAGE_PREFIX }}
+          PREFIX="${{ env.GHCR_PACKAGE_PREFIX }}"
 
           for s in "${SERVICES[@]}"; do
-            echo "🚀 Pushing $s"
-            podman push ${PREFIX}/${s}:latest
+            echo "Pushing $s"
+            push_with_retry "${PREFIX}/${s}:latest"
+            sleep 10
           done
