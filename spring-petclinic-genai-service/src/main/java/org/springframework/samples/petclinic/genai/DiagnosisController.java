@@ -55,11 +55,19 @@ public class DiagnosisController {
     public Mono<Map<String, Object>> saveFeedback(@PathVariable Long predictionId,
                                                  @RequestBody FeedbackRequest feedback) {
         logger.info("Saving feedback for prediction: {}", predictionId);
+
+        // FastAPI expects `final_diagnosis` as a non-null string.
+        // If the UI sends null (e.g., reject without selecting Target Diagnosis),
+        // fail fast here with a clearer error.
+        if (feedback == null || feedback.getFinalDiagnosis() == null || feedback.getFinalDiagnosis().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "finalDiagnosis is required (select Target Diagnosis before reject)");
+        }
         
         return trainingClient.processFinalDiagnosis(
             predictionId,
             feedback.getFinalDiagnosis(),
             feedback.isCorrect(),
+            feedback.getAiDiagnosis(),
             feedback.getConfidenceRating(),
             feedback.getComments(),
             feedback.getVeterinarianId()
@@ -94,6 +102,7 @@ public class DiagnosisController {
     // DTOs for request bodies
     public static class FeedbackRequest {
         private String finalDiagnosis;
+        private String aiDiagnosis;
         private boolean isCorrect;
         private int confidenceRating;
         private String comments;
@@ -102,6 +111,9 @@ public class DiagnosisController {
         // Getters and setters
         public String getFinalDiagnosis() { return finalDiagnosis; }
         public void setFinalDiagnosis(String finalDiagnosis) { this.finalDiagnosis = finalDiagnosis; }
+
+        public String getAiDiagnosis() { return aiDiagnosis; }
+        public void setAiDiagnosis(String aiDiagnosis) { this.aiDiagnosis = aiDiagnosis; }
         
         public boolean isCorrect() { return isCorrect; }
         public void setCorrect(boolean correct) { isCorrect = correct; }

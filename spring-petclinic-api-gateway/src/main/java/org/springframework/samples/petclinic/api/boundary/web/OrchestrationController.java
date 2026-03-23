@@ -64,7 +64,8 @@ public class OrchestrationController {
     private Mono<Void> deleteVisitsByPetId(int petId) {
         return webClientBuilder.build()
             .delete()
-            .uri("http://visits-service/pets/{petId}/visits", petId)
+            // Service Kubernetes đang expose port 8082
+            .uri("http://visits-service:8082/pets/{petId}/visits", petId)
             .retrieve()
             .bodyToMono(Void.class);
     }
@@ -72,7 +73,8 @@ public class OrchestrationController {
     private Mono<Void> deletePet(int ownerId, int petId) {
         return webClientBuilder.build()
             .delete()
-            .uri("http://customers-service/owners/{ownerId}/pets/{petId}", ownerId, petId)
+            // Service Kubernetes đang expose port 8081
+            .uri("http://customers-service:8081/owners/{ownerId}/pets/{petId}", ownerId, petId)
             .retrieve()
             .bodyToMono(Void.class);
     }
@@ -80,7 +82,8 @@ public class OrchestrationController {
     private Mono<Void> deleteOwner(int ownerId) {
         return webClientBuilder.build()
             .delete()
-            .uri("http://customers-service/owners/{ownerId}", ownerId)
+            // Service Kubernetes đang expose port 8081
+            .uri("http://customers-service:8081/owners/{ownerId}", ownerId)
             .retrieve()
             .bodyToMono(Void.class);
     }

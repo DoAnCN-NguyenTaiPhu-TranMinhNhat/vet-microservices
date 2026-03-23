@@ -62,13 +62,18 @@ angular.module('core')
             };
         };
         
-        self.createFeedbackData = function(finalDiagnosis, isCorrect, confidenceRating, comments, veterinarianId) {
+        self.createFeedbackData = function(finalDiagnosis, isCorrect, confidenceRating, comments, veterinarianId, aiDiagnosis) {
             var feedbackData = {
                 finalDiagnosis: finalDiagnosis,
                 isCorrect: isCorrect,
                 comments: comments,
                 veterinarianId: veterinarianId
             };
+
+            // Keep track of the AI-suggested label so backend can apply a negative training signal on reject.
+            if (aiDiagnosis !== null && aiDiagnosis !== undefined) {
+                feedbackData.aiDiagnosis = aiDiagnosis;
+            }
             
             // Only include confidenceRating if provided
             if (confidenceRating !== null && confidenceRating !== undefined) {

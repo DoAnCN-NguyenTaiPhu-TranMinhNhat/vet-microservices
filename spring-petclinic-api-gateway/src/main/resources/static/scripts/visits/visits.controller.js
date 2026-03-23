@@ -277,7 +277,8 @@ angular.module('visits')
                 true,
                 calculatedConfidence,  // Use calculated confidence
                 "Doctor accepted AI suggestion (confidence: " + calculatedConfidence + ")",
-                self.currentVeterinarianId
+                self.currentVeterinarianId,
+                self.aiPrediction.diagnosis
             );
             
             // Use predictionId from response
@@ -305,6 +306,13 @@ angular.module('visits')
                 console.error('Cannot reject suggestion: No veterinarian ID');
                 return;
             }
+
+            // Reject requires doctor's selected final diagnosis (dropdown).
+            // If empty, we'd send null/empty to backend and FastAPI returns 422.
+            if (!self.targetDiagnosis || self.targetDiagnosis.toString().trim() === "") {
+                alert('Please select a Target Diagnosis before rejecting the AI suggestion.');
+                return;
+            }
             
             // Calculate confidence rating based on AI prediction vs final diagnosis
             var calculatedConfidence = DiagnosisService.calculateConfidenceRating(
@@ -317,11 +325,12 @@ angular.module('visits')
             
             // Create feedback data using service
             var feedbackData = DiagnosisService.createFeedbackData(
-                self.targetDiagnosis || null,
+                self.targetDiagnosis,
                 false,
                 calculatedConfidence,  // Use calculated confidence
                 "Doctor rejected AI suggestion (confidence: " + calculatedConfidence + ")",
-                self.currentVeterinarianId
+                self.currentVeterinarianId,
+                self.aiPrediction.diagnosis
             );
             
             // Use predictionId from response
@@ -332,7 +341,12 @@ angular.module('visits')
                     console.log('Rejection feedback sent successfully for prediction:', predictionId);
                 })
                 .catch(function(error) {
-                    console.error('Failed to send rejection feedback:', error);
+                    // Backend may return 400 with message when finalDiagnosis is missing.
+                    // Show it as UI notification instead of only logging to console.
+                    var msg = error && (error.data?.message || error.data?.error) ? (error.data.message || error.data.error) : null;
+                    if (!msg && error && error.statusText) msg = error.statusText;
+                    if (!msg) msg = 'Failed to send rejection feedback. Please try again.';
+                    alert(msg);
                 });
             
             // Clear AI prediction

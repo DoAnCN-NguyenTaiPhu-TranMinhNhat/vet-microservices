@@ -107,11 +107,16 @@ public class ContinuousTrainingClient {
      * Save doctor feedback for a prediction
      */
     public Mono<Void> saveFeedback(Long predictionId, String finalDiagnosis, boolean isCorrect,
+                                  String aiDiagnosis,
                                   Integer confidenceRating, String comments, Integer veterinarianId) {
         Map<String, Object> feedback = new HashMap<>();
         feedback.put("prediction_id", predictionId);
         feedback.put("final_diagnosis", finalDiagnosis);
         feedback.put("is_correct", isCorrect);
+
+        if (aiDiagnosis != null && !aiDiagnosis.isBlank()) {
+            feedback.put("ai_diagnosis", aiDiagnosis);
+        }
         
         // Validate confidence_rating - FastAPI requires 1-5, not 0-5
         if (confidenceRating != null) {
@@ -286,10 +291,10 @@ public class ContinuousTrainingClient {
      * Process final diagnosis with feedback and auto-training check
      */
     public Mono<Map<String, Object>> processFinalDiagnosis(Long predictionId, String finalDiagnosis,
-                                                          boolean isCorrect, Integer confidenceRating,
+                                                          boolean isCorrect, String aiDiagnosis, Integer confidenceRating,
                                                           String comments, Integer veterinarianId) {
         // 1. Save feedback
-        return saveFeedback(predictionId, finalDiagnosis, isCorrect, confidenceRating, comments, veterinarianId)
+        return saveFeedback(predictionId, finalDiagnosis, isCorrect, aiDiagnosis, confidenceRating, comments, veterinarianId)
                 .then(checkTrainingEligibility())
                 .flatMap(eligibility -> {
                     Boolean isEligible = (Boolean) eligibility.get("is_eligible_for_training");
