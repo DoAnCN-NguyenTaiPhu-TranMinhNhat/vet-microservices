@@ -1,3 +1,10 @@
+# Dùng chung: cùng profile với EKS (Ansible) — vet-microservices-config on-profile: deploy
+x-spring-docker-env: &spring_docker_env
+  SPRING_PROFILES_ACTIVE: deploy
+  # All Spring containers must talk to config-server via service DNS (not localhost).
+  # Without this, services fall back to http://localhost:8888 inside the container and boot with wrong defaults.
+  CONFIG_SERVER_URL: http://config-server:8888/
+
 networks:
   petclinic-net:
     driver: bridge
@@ -14,6 +21,8 @@ services:
     networks: [petclinic-net]
     ports:
       - "8888:8888"
+    environment:
+      <<: *spring_docker_env
     deploy:
       resources:
         limits:
@@ -30,6 +39,8 @@ services:
     networks: [petclinic-net]
     ports:
       - "8761:8761"
+    environment:
+      <<: *spring_docker_env
     deploy:
       resources:
         limits:
@@ -49,6 +60,8 @@ services:
     networks: [petclinic-net]
     ports:
       - "8081:8081"
+    environment:
+      <<: *spring_docker_env
     deploy:
       resources:
         limits:
@@ -64,7 +77,7 @@ services:
     ports:
       - "8082:8082"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
+      <<: *spring_docker_env
     deploy:
       resources:
         limits:
@@ -79,6 +92,8 @@ services:
     networks: [petclinic-net]
     ports:
       - "8083:8083"
+    environment:
+      <<: *spring_docker_env
     deploy:
       resources:
         limits:
@@ -93,6 +108,8 @@ services:
     networks: [petclinic-net]
     ports:
       - "8080:8080"
+    environment:
+      <<: *spring_docker_env
     deploy:
       resources:
         limits:
@@ -107,6 +124,8 @@ services:
     networks: [petclinic-net]
     ports:
       - "9092:9090"   # host 9092 (9090 thường bị chiếm bởi Prometheus/process khác)
+    environment:
+      <<: *spring_docker_env
     deploy:
       resources:
         limits:
@@ -238,7 +257,7 @@ services:
     env_file:
       - ../vet-infra/.env
     environment:
-      SPRING_PROFILES_ACTIVE: docker
+      <<: *spring_docker_env
       VETAI_DIAGNOSIS_URL: http://vet-ai:8000
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
     deploy:

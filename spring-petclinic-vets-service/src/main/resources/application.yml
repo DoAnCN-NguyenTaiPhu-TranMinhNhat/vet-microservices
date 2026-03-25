@@ -35,5 +35,5 @@ logging:
 spring:
   config:
     activate:
-      on-profile: docker
+      on-profile: "docker | deploy"
     import: configserver:http://config-server:8888

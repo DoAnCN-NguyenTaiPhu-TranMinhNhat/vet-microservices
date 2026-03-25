@@ -30,9 +30,8 @@ import static java.util.stream.Collectors.joining;
 @Component
 public class VisitsServiceClient {
 
-    // Could be changed for testing purpose
-    // Service Kubernetes đang expose port 8082
-    private String hostname = "http://visits-service:8082/";
+    // Host = Eureka service id; port comes from registry (@LoadBalanced WebClient.Builder)
+    private String hostname = "http://visits-service/";
 
     private final WebClient.Builder webClientBuilder;
 

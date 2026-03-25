@@ -34,8 +34,8 @@ public class CustomersServiceClient {
 
     public Mono<OwnerDetails> getOwner(final int ownerId) {
         return webClientBuilder.build().get()
-            // Service Kubernetes đang expose port 8081
-            .uri("http://customers-service:8081/owners/{ownerId}", ownerId)
+            // Host = Eureka service id; port comes from registry (@LoadBalanced WebClient.Builder)
+            .uri("http://customers-service/owners/{ownerId}", ownerId)
             .retrieve()
             .bodyToMono(OwnerDetails.class);
     }

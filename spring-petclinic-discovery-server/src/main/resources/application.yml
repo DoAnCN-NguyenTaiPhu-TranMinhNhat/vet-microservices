@@ -16,6 +16,7 @@ logging:
 spring:
   config:
     activate:
-      on-profile: docker
+      # Phải khớp SPRING_PROFILES_ACTIVE=deploy (compose/EKS) hoặc docker (cũ)
+      on-profile: "docker | deploy"
     import: configserver:http://config-server:8888
 
