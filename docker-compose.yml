@@ -234,6 +234,9 @@ services:
     environment:
       # Prefer values from env_file; keep sane defaults for local
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      # Local test: reuse postgres-mlflow for continuous-training persistence.
+      # For production, prefer separate DB/schema and credential.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://mlflow:mlflow@postgres:5432/mlflow}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
       MODEL_DIR: ${MODEL_DIR:-/app/ai_service/models/v2}
       MODEL_ROOT_DIR: ${MODEL_ROOT_DIR:-/app/ai_service/models}
