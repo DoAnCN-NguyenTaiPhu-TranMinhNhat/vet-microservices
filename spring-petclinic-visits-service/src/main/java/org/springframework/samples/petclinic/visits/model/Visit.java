@@ -17,6 +17,8 @@ package org.springframework.samples.petclinic.visits.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -25,6 +27,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * Simple JavaBean domain object representing a visit.
@@ -50,8 +53,9 @@ public class Visit {
     @Column(name = "description")
     private String description;
 
-    @Column(name = "pet_id")
-    private int petId;
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "pet_id", columnDefinition = "VARCHAR(36)", length = 36)
+    private UUID petId;
 
     // Medical data fields
     @Column(name = "temperature", precision = 4, scale = 1)
@@ -92,7 +96,7 @@ public class Visit {
         return this.description;
     }
 
-    public int getPetId() {
+    public UUID getPetId() {
         return this.petId;
     }
 
@@ -108,7 +112,7 @@ public class Visit {
         this.description = description;
     }
 
-    public void setPetId(int petId) {
+    public void setPetId(UUID petId) {
         this.petId = petId;
     }
 
@@ -164,7 +168,7 @@ public class Visit {
         private Integer id;
         private Date date;
         private @Size(max = 8192) String description;
-        private int petId;
+        private UUID petId;
         private BigDecimal temperature;
         private BigDecimal weightKg;
         private String symptomsList;
@@ -194,7 +198,7 @@ public class Visit {
             return this;
         }
 
-        public VisitBuilder petId(int petId) {
+        public VisitBuilder petId(UUID petId) {
             this.petId = petId;
             return this;
         }

@@ -6,36 +6,18 @@ angular.module('visits')
                                   function ($http, $state, $stateParams, $filter, 
                                            AuthService, PetService, VisitService, DiagnosisService) {
         var self = this;
-        var petId = $stateParams.petId;
-        var ownerId = $stateParams.ownerId;
-        
-        // Debug: Show raw state params and their types
-        console.log('VisitsController: Raw stateParams:', $stateParams);
-        console.log('VisitsController: petId type:', typeof petId, 'value:', petId);
-        console.log('VisitsController: ownerId type:', typeof ownerId, 'value:', ownerId);
-        
-        // Convert to integers if they're strings
-        petId = parseInt(petId);
-        ownerId = parseInt(ownerId);
-        
-        console.log('VisitsController: Frontend IDs - petId =', petId, 'ownerId =', ownerId);
-        
-        // Validate IDs - backend uses 0-based indexing
-        if (petId < 0) {
-            console.log('VisitsController: Invalid petId, blocking API calls');
+        // UUID path params must stay strings — parseInt() truncates at the first non-digit (e.g. 76524f8a-… → 76524).
+        var petId = $stateParams.petId != null ? String($stateParams.petId).trim() : '';
+        var ownerId = $stateParams.ownerId != null ? String($stateParams.ownerId).trim() : '';
+
+        if (!petId) {
             self.petLoadError = 'Invalid pet ID. Please navigate from the owner details page.';
             return;
         }
-        
-        if (ownerId < 0) {
-            console.log('VisitsController: Invalid ownerId, blocking API calls');
+        if (!ownerId) {
             self.petLoadError = 'Invalid owner ID. Please navigate from the owner details page.';
             return;
         }
-        
-        console.log('VisitsController: Validation passed, loading data');
-        
-        // Pet ID 0 is now supported - allow visits for all valid pet IDs
         
         // Define loadData function before calling it
         self.loadData = function() {
@@ -116,6 +98,20 @@ angular.module('visits')
         // Current veterinarian ID (loaded from session)
         self.currentVeterinarianId = null;
         
+        function clinicIdForSession() {
+            if (DiagnosisService.readClinicIdForAi) {
+                return DiagnosisService.readClinicIdForAi();
+            }
+            try {
+                var u = JSON.parse(localStorage.getItem('vet_clinic_user') || '{}');
+                var v = u && u.clinicId != null && u.clinicId !== '' ? u.clinicId : u && u.clinic_id;
+                if (v != null && v !== '') {
+                    return String(v).trim();
+                }
+            } catch (e) { /* ignore */ }
+            return null;
+        }
+
         // Call loadData to start the process
         self.loadData();
         
@@ -234,7 +230,7 @@ angular.module('visits')
                 vaccinationStatus: self.vaccinationStatus
             };
             
-            var diagnosisData = DiagnosisService.createDiagnosisData(formData, petData);
+            var diagnosisData = DiagnosisService.createDiagnosisData(formData, petData, clinicIdForSession());
 
             // Don't estimate visitId - let backend handle it or require visit creation first
             DiagnosisService.getAIDiagnosis(diagnosisData, null, self.pet.id, self.currentVeterinarianId)
@@ -284,7 +280,7 @@ angular.module('visits')
             // Use predictionId from response
             var predictionId = self.aiPrediction.predictionId;
             
-            DiagnosisService.sendFeedback(predictionId, feedbackData)
+            DiagnosisService.sendFeedback(predictionId, feedbackData, clinicIdForSession())
                 .then(function() {
                     console.log('Feedback sent successfully for prediction:', predictionId);
                 })
@@ -336,7 +332,7 @@ angular.module('visits')
             // Use predictionId from response
             var predictionId = self.aiPrediction.predictionId;
             
-            DiagnosisService.sendFeedback(predictionId, feedbackData)
+            DiagnosisService.sendFeedback(predictionId, feedbackData, clinicIdForSession())
                 .then(function() {
                     console.log('Rejection feedback sent successfully for prediction:', predictionId);
                 })

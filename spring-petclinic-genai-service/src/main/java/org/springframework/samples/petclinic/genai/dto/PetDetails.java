@@ -16,6 +16,7 @@
 package org.springframework.samples.petclinic.genai.dto;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Simple Data Transfer Object representing a pet data type.
@@ -23,7 +24,7 @@ import java.util.List;
  * @author Oded Shopen
  */
 public record PetDetails(
-    int id,
+    UUID id,
     String name,
     String birthDate,
     PetType type,

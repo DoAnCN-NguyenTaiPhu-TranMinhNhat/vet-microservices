@@ -1,10 +1,21 @@
 spring:
   application:
     name: api-gateway
+  # Default /** static mapping disabled; see GatewayStaticResourcesConfiguration + SpaIndexController.
+  web:
+    resources:
+      add-mappings: false
   config:
     import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888/}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          secret-key: ${JWT_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
   cloud:
     gateway:
+      handler-mapping:
+        order: -10
       default-filters:
         - name: CircuitBreaker
           args:
@@ -47,13 +58,15 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 
 ---
-# Cùng khối với vet-microservices-config (on-profile: deploy) — EKS + docker-compose
+# Same block as vet-microservices-config (on-profile: deploy) — EKS + docker-compose
 spring:
   config:
     activate:
       on-profile: deploy
   cloud:
     gateway:
+      handler-mapping:
+        order: -10
       default-filters:
         - name: CircuitBreaker
           args:

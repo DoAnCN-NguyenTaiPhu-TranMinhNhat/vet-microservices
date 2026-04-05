@@ -1,2 +1,19 @@
-spring.cloud.config.enabled: false
-eureka.client.enabled: false
+spring:
+  web:
+    resources:
+      add-mappings: false
+  cloud:
+    config:
+      enabled: false
+    gateway:
+      handler-mapping:
+        order: -10
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          secret-key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+eureka:
+  client:
+    enabled: false

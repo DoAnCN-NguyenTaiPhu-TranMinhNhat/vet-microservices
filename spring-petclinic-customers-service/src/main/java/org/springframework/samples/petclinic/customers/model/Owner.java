@@ -16,8 +16,9 @@
 package org.springframework.samples.petclinic.customers.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.beans.support.MutableSortDefinition;
 import org.springframework.beans.support.PropertyComparator;
 import org.springframework.core.style.ToStringCreator;
@@ -39,8 +40,10 @@ import java.util.*;
 public class Owner {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(columnDefinition = "VARCHAR(36)", length = 36)
+    private UUID id;
 
     @Column(name = "first_name")
     @NotBlank
@@ -58,14 +61,19 @@ public class Owner {
     @NotBlank
     private String city;
 
-    @Column(name = "telephone")
-    @NotBlank
-    // Cho phép số điện thoại có mã quốc gia + khoảng trắng, ví dụ: "+84 0335190759"
-    @jakarta.validation.constraints.Pattern(regexp = "^[+0-9][0-9 ]{3,19}$")
-    private String telephone;
+	@Column(name = "telephone")
+	@NotBlank
+	// Allows country code and spaces, e.g. "+84 0335190759"
+	@jakarta.validation.constraints.Pattern(regexp = "^[+0-9][0-9 ]{3,19}$")
+	private String telephone;
 
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, mappedBy = "owner")
-    private Set<Pet> pets;
+	/** Which clinic manages this owner; null = legacy / unassigned. */
+	@JdbcTypeCode(SqlTypes.VARCHAR)
+	@Column(name = "clinic_id", columnDefinition = "VARCHAR(36)", length = 36)
+	private UUID clinicId;
+
+	@OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, mappedBy = "owner")
+	private Set<Pet> pets;
 
     protected Set<Pet> getPetsInternal() {
         if (this.pets == null) {
@@ -97,7 +105,7 @@ public class Owner {
             .toString();
     }
 
-    public Integer getId() {
+    public UUID getId() {
         return this.id;
     }
 
@@ -137,7 +145,15 @@ public class Owner {
         this.city = city;
     }
 
-    public void setTelephone(String telephone) {
-        this.telephone = telephone;
-    }
+	public void setTelephone(String telephone) {
+		this.telephone = telephone;
+	}
+
+	public UUID getClinicId() {
+		return this.clinicId;
+	}
+
+	public void setClinicId(UUID clinicId) {
+		this.clinicId = clinicId;
+	}
 }

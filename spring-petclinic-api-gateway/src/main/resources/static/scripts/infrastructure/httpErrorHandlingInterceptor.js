@@ -8,8 +8,20 @@ angular.module('infrastructure')
     .factory('HttpErrorHandlingInterceptor', function () {
         return {
             responseError: function (response) {
+                if (response.status === 401) {
+                    try {
+                        localStorage.removeItem('vet_clinic_jwt');
+                        localStorage.removeItem('vet_clinic_user');
+                    } catch (e) { /* ignore */ }
+                    var hash = window.location.hash || '';
+                    if (hash.indexOf('login') < 0 && hash.indexOf('register') < 0) {
+                        window.location.href = window.location.pathname + window.location.search + '#!/login';
+                    }
+                    return Promise.reject(response);
+                }
+
                 console.log('HTTP Error Interceptor - Response:', response);
-                
+
                 var error = response.data || {};
                 console.log('HTTP Error Interceptor - Error object:', error);
                 

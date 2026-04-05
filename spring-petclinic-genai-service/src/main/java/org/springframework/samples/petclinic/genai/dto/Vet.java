@@ -16,6 +16,7 @@
 package org.springframework.samples.petclinic.genai.dto;
 
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Simple Data Transfer Object representing a vet.
@@ -23,7 +24,7 @@ import java.util.Set;
  * @author Oded Shopen
  */
 public record Vet(
-    Integer id,
+    UUID id,
     String firstName,
     String lastName,
     Set<Specialty> specialties) {

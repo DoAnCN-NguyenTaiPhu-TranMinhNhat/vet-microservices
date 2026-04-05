@@ -13,10 +13,10 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Service for integrating with Continuous Training API
@@ -41,17 +41,19 @@ public class ContinuousTrainingClient {
     }
 
     /**
-     * Log prediction to continuous training system
+     * Log prediction to continuous training system (upserts same id as vet-ai /predict when present).
      */
-    public Mono<Long> logPrediction(AiDiagnosisRequest request, AiDiagnosisResponse response, 
-                                    Integer visitId, Integer petId, Integer veterinarianId) {
-        // Generate unique ID using timestamp and random
-        long predictionId = System.currentTimeMillis() + (long)(Math.random() * 1000);
-        
+    public Mono<UUID> logPrediction(AiDiagnosisRequest request, AiDiagnosisResponse response, 
+                                    Integer visitId, UUID petId, UUID veterinarianId) {
+        UUID rowId = response.predictionId() != null ? response.predictionId() : UUID.randomUUID();
+
         Map<String, Object> predictionLog = new HashMap<>();
-        predictionLog.put("id", predictionId);
+        predictionLog.put("id", rowId.toString());
         predictionLog.put("visit_id", visitId);
-        predictionLog.put("pet_id", petId);
+        UUID effectivePet = petId != null ? petId : request.petId();
+        predictionLog.put(
+            "pet_id",
+            effectivePet != null ? effectivePet.toString() : "00000000-0000-0000-0000-000000000000");
         Map<String, Object> inputMap = new HashMap<>();
         inputMap.put("animal_type", request.animal_type());
         inputMap.put("gender", request.gender());
@@ -64,7 +66,16 @@ public class ContinuousTrainingClient {
         inputMap.put("medical_history", request.medical_history());
         inputMap.put("symptoms_list", request.symptoms_list());
         inputMap.put("symptom_duration", request.symptom_duration());
-        
+        String effectiveClinic = null;
+        if (response.clinicId() != null && !response.clinicId().isBlank()) {
+            effectiveClinic = response.clinicId().trim();
+        } else if (request.clinicId() != null) {
+            effectiveClinic = request.clinicId().toString();
+        }
+        if (effectiveClinic != null) {
+            inputMap.put("clinic_id", effectiveClinic);
+        }
+
         Map<String, Object> outputMap = new HashMap<>();
         outputMap.put("diagnosis", response.diagnosis());
         outputMap.put("confidence", response.confidence());
@@ -80,8 +91,8 @@ public class ContinuousTrainingClient {
         
         // Handle null top_k - default to empty list
         predictionLog.put("top_k_predictions", response.top_k() != null ? response.top_k() : List.of());
-        predictionLog.put("veterinarian_id", veterinarianId);
-        predictionLog.put("clinic_id", 1); // Default clinic ID
+        predictionLog.put("veterinarian_id", veterinarianId != null ? veterinarianId.toString() : null);
+        predictionLog.put("clinic_id", effectiveClinic);
 
         logger.info("Sending prediction log to FastAPI: {}", predictionLog);
 
@@ -104,15 +115,20 @@ public class ContinuousTrainingClient {
     }
 
     /**
-     * Save doctor feedback for a prediction
+     * Save doctor feedback for a prediction; returns vet-ai JSON (training_pool, auto_trigger_scope, …).
      */
-    public Mono<Void> saveFeedback(Long predictionId, String finalDiagnosis, boolean isCorrect,
+    public Mono<Map<String, Object>> saveFeedback(UUID predictionId, String finalDiagnosis, boolean isCorrect,
                                   String aiDiagnosis,
-                                  Integer confidenceRating, String comments, Integer veterinarianId) {
+                                  Integer confidenceRating, String comments, UUID veterinarianId,
+                                  String trainingPoolOverride) {
         Map<String, Object> feedback = new HashMap<>();
-        feedback.put("prediction_id", predictionId);
+        feedback.put("prediction_id", predictionId.toString());
         feedback.put("final_diagnosis", finalDiagnosis);
         feedback.put("is_correct", isCorrect);
+
+        if (trainingPoolOverride != null && !trainingPoolOverride.isBlank()) {
+            feedback.put("training_pool", trainingPoolOverride.trim());
+        }
 
         if (aiDiagnosis != null && !aiDiagnosis.isBlank()) {
             feedback.put("ai_diagnosis", aiDiagnosis);
@@ -134,7 +150,7 @@ public class ContinuousTrainingClient {
         }
         
         feedback.put("comments", comments);
-        feedback.put("veterinarian_id", veterinarianId);
+        feedback.put("veterinarian_id", veterinarianId != null ? veterinarianId.toString() : null);
         feedback.put("is_training_eligible", true);
         feedback.put("data_quality_score", 1.0);
 
@@ -145,7 +161,8 @@ public class ContinuousTrainingClient {
                 .uri("/continuous-training/feedback")
                 .bodyValue(feedback)
                 .retrieve()
-                .bodyToMono(Void.class)
+                .bodyToMono(Map.class)
+                .map(response -> (Map<String, Object>) response)
                 .doOnSuccess(v -> logger.info("Feedback saved successfully for prediction: {}", predictionId))
                 .doOnError(e -> {
                     if (e instanceof WebClientResponseException) {
@@ -173,29 +190,52 @@ public class ContinuousTrainingClient {
     }
 
     /**
-     * Check if system is eligible for training
+     * Check if system is eligible for training (global aggregate).
      */
     @SuppressWarnings("unchecked")
     public Mono<Map<String, Object>> checkTrainingEligibility() {
+        return checkTrainingEligibility(null);
+    }
+
+    /**
+     * Check eligibility for global scope or for one clinic (matches vet-ai query param clinic_id).
+     */
+    @SuppressWarnings("unchecked")
+    public Mono<Map<String, Object>> checkTrainingEligibility(UUID clinicId) {
+        String path = "/continuous-training/training/eligibility";
+        if (clinicId != null) {
+            path = path + "?clinic_id=" + clinicId;
+        }
         return webClient
                 .get()
-                .uri("/continuous-training/training/eligibility")
+                .uri(path)
                 .retrieve()
                 .bodyToMono(Map.class)
                 .map(response -> (Map<String, Object>) response)
-                .doOnSuccess(response -> logger.info("Training eligibility checked: {}", response))
+                .doOnSuccess(response -> logger.info("Training eligibility checked (clinicId={}): {}", clinicId, response))
                 .doOnError(e -> logger.error("Failed to check training eligibility: {}", e.getMessage()));
     }
 
     /**
-     * Trigger training job
+     * Trigger training job (global scope).
      */
     @SuppressWarnings("unchecked")
     public Mono<Map<String, Object>> triggerTraining(String triggerType, String reason, boolean force) {
+        return triggerTraining(triggerType, reason, force, null);
+    }
+
+    /**
+     * Trigger training job, optionally scoped to a clinic (vet-ai body field clinic_id).
+     */
+    @SuppressWarnings("unchecked")
+    public Mono<Map<String, Object>> triggerTraining(String triggerType, String reason, boolean force, UUID clinicId) {
         Map<String, Object> request = new HashMap<>();
         request.put("trigger_type", triggerType);
         request.put("trigger_reason", reason);
         request.put("force", force);
+        if (clinicId != null) {
+            request.put("clinic_id", clinicId.toString());
+        }
 
         return webClient
                 .post()
@@ -232,8 +272,8 @@ public class ContinuousTrainingClient {
      * Complete diagnosis workflow with training integration
      */
     public Mono<AiDiagnosisResponse> diagnoseWithTraining(AiDiagnosisRequest request, 
-                                                         Integer visitId, Integer petId, 
-                                                         Integer veterinarianId) {
+                                                         Integer visitId, UUID petId, 
+                                                         UUID veterinarianId) {
         // 1. Get AI diagnosis
         return Mono.fromCallable(() -> {
             AiDiagnosisClient aiClient = new AiDiagnosisClient(aiServiceUrl);
@@ -250,7 +290,8 @@ public class ContinuousTrainingClient {
                             response.top_k(),
                             response.modelVersion(),
                             response.predictions(),
-                            predictionId
+                            predictionId,
+                            response.clinicId()
                         );
                     });
         })
@@ -262,7 +303,7 @@ public class ContinuousTrainingClient {
      * Diagnosis without visit - still log for training with null visitId
      */
     public Mono<AiDiagnosisResponse> diagnoseWithoutVisit(AiDiagnosisRequest request, 
-                                                         Integer petId, Integer veterinarianId) {
+                                                         UUID petId, UUID veterinarianId) {
         // 1. Get AI diagnosis
         return Mono.fromCallable(() -> {
             AiDiagnosisClient aiClient = new AiDiagnosisClient(aiServiceUrl);
@@ -279,7 +320,8 @@ public class ContinuousTrainingClient {
                             response.top_k(),
                             response.modelVersion(),
                             response.predictions(),
-                            predictionId
+                            predictionId,
+                            response.clinicId()
                         );
                     });
         })
@@ -290,22 +332,53 @@ public class ContinuousTrainingClient {
     /**
      * Process final diagnosis with feedback and auto-training check
      */
-    public Mono<Map<String, Object>> processFinalDiagnosis(Long predictionId, String finalDiagnosis,
+    public Mono<Map<String, Object>> processFinalDiagnosis(UUID predictionId, String finalDiagnosis,
                                                           boolean isCorrect, String aiDiagnosis, Integer confidenceRating,
-                                                          String comments, Integer veterinarianId) {
-        // 1. Save feedback
-        return saveFeedback(predictionId, finalDiagnosis, isCorrect, aiDiagnosis, confidenceRating, comments, veterinarianId)
-                .then(checkTrainingEligibility())
-                .flatMap(eligibility -> {
-                    Boolean isEligible = (Boolean) eligibility.get("is_eligible_for_training");
-                    if (isEligible) {
-                        logger.info("System eligible for training, triggering automatic training...");
-                        return triggerTraining("automatic", "Threshold reached: " + eligibility.get("eligible_feedback_count"), false);
-                    } else {
-                        logger.info("System not eligible for training. Current: {}, Required: {}", 
-                                eligibility.get("eligible_feedback_count"), eligibility.get("training_threshold"));
-                        return Mono.just(Map.of("status", "not_eligible", "eligibility", eligibility));
-                    }
+                                                          String comments, UUID veterinarianId, UUID clinicId,
+                                                          String trainingPoolOverride) {
+        // Eligibility/trigger scope follows vet-ai feedback row (GLOBAL vs CLINIC_ONLY), not only JWT clinic.
+        return saveFeedback(predictionId, finalDiagnosis, isCorrect, aiDiagnosis, confidenceRating, comments,
+                veterinarianId, trainingPoolOverride)
+                .flatMap(feedbackResp -> {
+                    String autoScope = feedbackResp.get("auto_trigger_scope") != null
+                            ? String.valueOf(feedbackResp.get("auto_trigger_scope"))
+                            : "clinic";
+                    boolean useGlobal = "global".equalsIgnoreCase(autoScope);
+                    UUID effectiveClinic = useGlobal ? null : clinicId;
+
+                    return checkTrainingEligibility(effectiveClinic)
+                            .flatMap(eligibility -> {
+                                Boolean isEligible = (Boolean) eligibility.get("is_eligible_for_training");
+                                if (Boolean.TRUE.equals(isEligible)) {
+                                    logger.info(
+                                            "Eligible for training (scope={}, effectiveClinic={}), triggering automatic training...",
+                                            autoScope,
+                                            effectiveClinic);
+                                    return triggerTraining(
+                                            "automatic",
+                                            "Threshold reached: " + eligibility.get("eligible_feedback_count"),
+                                            false,
+                                            effectiveClinic)
+                                            .map(trigger -> {
+                                                Map<String, Object> combined = new HashMap<>(trigger);
+                                                combined.put("feedback_saved", feedbackResp);
+                                                combined.put("training_scope_used", useGlobal ? "global" : "clinic");
+                                                return combined;
+                                            });
+                                }
+                                logger.info(
+                                        "Not eligible for training (scope={}, effectiveClinic={}). Current: {}, Required: {}",
+                                        autoScope,
+                                        effectiveClinic,
+                                        eligibility.get("eligible_feedback_count"),
+                                        eligibility.get("training_threshold"));
+                                Map<String, Object> body = new HashMap<>();
+                                body.put("status", "not_eligible");
+                                body.put("eligibility", eligibility);
+                                body.put("feedback_saved", feedbackResp);
+                                body.put("training_scope_used", useGlobal ? "global" : "clinic");
+                                return Mono.just(body);
+                            });
                 })
                 .doOnSuccess(result -> logger.info("Final diagnosis processing completed: {}", result))
                 .doOnError(e -> logger.error("Failed to process final diagnosis: {}", e.getMessage()));

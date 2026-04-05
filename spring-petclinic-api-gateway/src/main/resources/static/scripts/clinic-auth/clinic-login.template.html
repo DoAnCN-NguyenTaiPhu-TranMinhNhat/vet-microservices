@@ -1,0 +1,38 @@
+<div class="clinic-login-screen">
+    <div class="clinic-login-screen__inner">
+        <div class="clinic-login-screen__card card">
+            <div class="card-body p-4 p-md-5">
+                <div class="text-center mb-4">
+                    <img src="/images/favicon.png" alt="" width="56" height="56" class="mb-2">
+                    <h1 class="h4 clinic-login-screen__brand mb-1">Vet Pet Clinic</h1>
+                    <p class="clinic-login-screen__sub mb-0">Sign in to your clinic account</p>
+                </div>
+
+                <div class="alert alert-danger py-2" ng-if="vm.error">{{ vm.error }}</div>
+
+                <form ng-submit="vm.submit()" name="loginForm" novalidate>
+                    <div class="mb-3">
+                        <label class="form-label" for="login-email">Email</label>
+                        <input id="login-email" type="email" class="form-control" ng-model="vm.email" required
+                               placeholder="demo@clinic.vet" autocomplete="username">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="login-password">Password</label>
+                        <input id="login-password" type="password" class="form-control" ng-model="vm.password" required
+                               minlength="6" placeholder="••••••" autocomplete="current-password">
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg" ng-disabled="loginForm.$invalid">Sign in</button>
+                    </div>
+                </form>
+
+                <hr class="my-4">
+
+                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2 small">
+                    <a ui-sref="register" class="link-success fw-medium">Register a new clinic</a>
+                    <a ui-sref="welcome" class="text-muted">← Back to home</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

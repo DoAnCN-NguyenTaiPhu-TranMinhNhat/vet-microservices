@@ -16,8 +16,9 @@
 package org.springframework.samples.petclinic.visits.web;
 
 import java.util.List;
+import java.util.UUID;
+
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
 
 import io.micrometer.core.annotation.Timed;
 import org.slf4j.Logger;
@@ -58,7 +59,7 @@ class VisitResource {
     @ResponseStatus(HttpStatus.CREATED)
     public Visit create(
         @Valid @RequestBody Visit visit,
-        @PathVariable("petId") @Min(0) int petId) {
+        @PathVariable("petId") UUID petId) {
 
         visit.setPetId(petId);
         log.info("Saving visit {}", visit);
@@ -66,19 +67,19 @@ class VisitResource {
     }
 
     @GetMapping("owners/*/pets/{petId}/visits")
-    public List<Visit> read(@PathVariable("petId") @Min(0) int petId) {
+    public List<Visit> read(@PathVariable("petId") UUID petId) {
         return visitRepository.findByPetId(petId);
     }
 
     // Delete all visits for a given pet (used for sync delete when pet is removed)
     @DeleteMapping("pets/{petId}/visits")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteByPet(@PathVariable("petId") @Min(0) int petId) {
+    public void deleteByPet(@PathVariable("petId") UUID petId) {
         visitRepository.deleteByPetId(petId);
     }
 
     @GetMapping("pets/visits")
-    public Visits read(@RequestParam("petId") List<Integer> petIds) {
+    public Visits read(@RequestParam("petId") List<UUID> petIds) {
         final List<Visit> byPetIdIn = visitRepository.findByPetIdIn(petIds);
         return new Visits(byPetIdIn);
     }

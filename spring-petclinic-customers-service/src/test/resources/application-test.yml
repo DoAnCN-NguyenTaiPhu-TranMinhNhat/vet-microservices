@@ -1,4 +1,9 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          secret-key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   cloud:
     config:
       enabled: false

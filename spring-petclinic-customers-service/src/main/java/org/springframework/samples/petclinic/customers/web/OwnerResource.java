@@ -16,17 +16,20 @@
 package org.springframework.samples.petclinic.customers.web;
 
 import io.micrometer.core.annotation.Timed;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.samples.petclinic.customers.auth.ClinicScopeService;
 import org.springframework.samples.petclinic.customers.web.mapper.OwnerEntityMapper;
 import org.springframework.samples.petclinic.customers.model.Owner;
 import org.springframework.samples.petclinic.customers.model.OwnerRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * @author Juergen Hoeller
@@ -44,10 +47,15 @@ class OwnerResource {
 
     private final OwnerRepository ownerRepository;
     private final OwnerEntityMapper ownerEntityMapper;
+    private final ClinicScopeService clinicScopeService;
 
-    OwnerResource(OwnerRepository ownerRepository, OwnerEntityMapper ownerEntityMapper) {
+    OwnerResource(
+        OwnerRepository ownerRepository,
+        OwnerEntityMapper ownerEntityMapper,
+        ClinicScopeService clinicScopeService) {
         this.ownerRepository = ownerRepository;
         this.ownerEntityMapper = ownerEntityMapper;
+        this.clinicScopeService = clinicScopeService;
     }
 
     /**
@@ -55,8 +63,10 @@ class OwnerResource {
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Owner createOwner(@Valid @RequestBody OwnerRequest ownerRequest) {
+    public Owner createOwner(@Valid @RequestBody OwnerRequest ownerRequest, HttpServletRequest request) {
         Owner owner = ownerEntityMapper.map(new Owner(), ownerRequest);
+        Optional<UUID> jwtClinic = clinicScopeService.clinicIdFromJwt(request);
+        jwtClinic.ifPresent(owner::setClinicId);
         return ownerRepository.save(owner);
     }
 
@@ -64,28 +74,45 @@ class OwnerResource {
      * Read single Owner
      */
     @GetMapping(value = "/{ownerId}")
-    public Owner findOwner(@PathVariable("ownerId") @Min(1) int ownerId) {
-        return ownerRepository.findById(ownerId)
+    public Owner findOwner(@PathVariable("ownerId") UUID ownerId, HttpServletRequest request) {
+        Owner owner = ownerRepository.findById(ownerId)
             .orElseThrow(() -> new ResourceNotFoundException("Owner " + ownerId + " not found"));
+        clinicScopeService.assertOwnerInClinicScope(owner, request);
+        return owner;
     }
 
-    /**
-     * Read List of Owners
-     */
-    @GetMapping
-    public List<Owner> findAll() {
-        return ownerRepository.findAll();
-    }
+	/**
+	 * Read List of Owners. When {@code clinicId} is set, only owners for that clinic (e.g. logged-in clinic).
+	 */
+	@GetMapping
+	public List<Owner> findAll(
+		@RequestParam(name = "clinicId", required = false) UUID clinicId,
+		HttpServletRequest request) {
+		Optional<UUID> jwtClinic = clinicScopeService.clinicIdFromJwt(request);
+		if (jwtClinic.isPresent()) {
+			return ownerRepository.findByClinicIdOrderByLastNameAscFirstNameAsc(jwtClinic.get());
+		}
+		if (clinicId != null) {
+			return ownerRepository.findByClinicIdOrderByLastNameAscFirstNameAsc(clinicId);
+		}
+		return ownerRepository.findAll();
+	}
 
     /**
      * Update Owner
      */
     @PutMapping(value = "/{ownerId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateOwner(@PathVariable("ownerId") @Min(1) int ownerId, @Valid @RequestBody OwnerRequest ownerRequest) {
+    public void updateOwner(
+        @PathVariable("ownerId") UUID ownerId,
+        @Valid @RequestBody OwnerRequest ownerRequest,
+        HttpServletRequest request) {
         final Owner ownerModel = ownerRepository.findById(ownerId).orElseThrow(() -> new ResourceNotFoundException("Owner " + ownerId + " not found"));
+        clinicScopeService.assertOwnerInClinicScope(ownerModel, request);
+        UUID clinicBefore = ownerModel.getClinicId();
 
         ownerEntityMapper.map(ownerModel, ownerRequest);
+        ownerModel.setClinicId(clinicBefore);
         log.info("Saving owner {}", ownerModel);
         ownerRepository.save(ownerModel);
     }
@@ -95,10 +122,10 @@ class OwnerResource {
      */
     @DeleteMapping(value = "/{ownerId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteOwner(@PathVariable("ownerId") @Min(1) int ownerId) {
-        if (!ownerRepository.existsById(ownerId)) {
-            throw new ResourceNotFoundException("Owner " + ownerId + " not found");
-        }
+    public void deleteOwner(@PathVariable("ownerId") UUID ownerId, HttpServletRequest request) {
+        Owner owner = ownerRepository.findById(ownerId)
+            .orElseThrow(() -> new ResourceNotFoundException("Owner " + ownerId + " not found"));
+        clinicScopeService.assertOwnerInClinicScope(owner, request);
         ownerRepository.deleteById(ownerId);
     }
 }

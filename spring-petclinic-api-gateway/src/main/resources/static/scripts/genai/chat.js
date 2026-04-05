@@ -38,12 +38,19 @@ function sendMessage() {
     // Display user message in the chatbox
     appendMessage(query, 'user');
 
-    // Send the message to the backend
+    var headers = {
+        'Content-Type': 'application/json',
+    };
+    try {
+        var token = localStorage.getItem('vet_clinic_jwt');
+        if (token) {
+            headers['Authorization'] = 'Bearer ' + token;
+        }
+    } catch (e) { /* ignore */ }
+
     fetch('/api/genai/chatclient', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: headers,
         body: JSON.stringify(query),
     })
         .then(response => response.text())

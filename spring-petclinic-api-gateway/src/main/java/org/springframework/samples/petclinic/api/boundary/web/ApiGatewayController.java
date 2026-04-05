@@ -22,16 +22,23 @@ import org.springframework.samples.petclinic.api.application.VisitsServiceClient
 import org.springframework.samples.petclinic.api.dto.OwnerDetails;
 import org.springframework.samples.petclinic.api.dto.VisitDetails;
 import org.springframework.samples.petclinic.api.dto.Visits;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 /**
@@ -56,8 +63,10 @@ public class ApiGatewayController {
     }
 
     @GetMapping(value = "owners/{ownerId}")
-    public Mono<OwnerDetails> getOwnerDetails(final @PathVariable int ownerId) {
-        return customersServiceClient.getOwner(ownerId)
+    public Mono<OwnerDetails> getOwnerDetails(
+        final @PathVariable UUID ownerId,
+        @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return customersServiceClient.getOwner(ownerId, authorization)
             .onErrorMap(WebClientResponseException.class, e -> mapDownstreamHttpError("customers-service", e))
             .flatMap(owner ->
                 visitsServiceClient.getVisitsForPets(owner.getPetIds())
@@ -70,14 +79,19 @@ public class ApiGatewayController {
     }
     
     @GetMapping(value = "/user/current")
-    public Mono<Map<String, Object>> getCurrentUser() {
-        // Mock user for testing
-        Map<String, Object> user = Map.of(
-            "id", 1,
-            "username", "test.vet",
-            "veterinarianId", 1,
-            "name", "Test Veterinarian"
-        );
+    public Mono<Map<String, Object>> getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
+        if (jwt == null) {
+            return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+        }
+        Map<String, Object> user = new LinkedHashMap<>();
+        user.put("id", jwt.getClaim("userId"));
+        user.put("username", jwt.getSubject());
+        user.put("clinicId", jwt.getClaim("clinicId"));
+        user.put("clinicName", jwt.getClaim("clinicName"));
+        user.put("name", jwt.getClaim("name"));
+        user.put("veterinarianId", jwt.getClaim("veterinarianId"));
+        Object clinicAdmin = jwt.getClaim("clinicAdmin");
+        user.put("clinicAdmin", clinicAdmin instanceof Boolean b ? b : Boolean.FALSE);
         return Mono.just(user);
     }
 
@@ -86,7 +100,7 @@ public class ApiGatewayController {
             owner.pets()
                 .forEach(pet -> pet.visits()
                     .addAll(visits.items().stream()
-                        .filter(v -> v.petId() == pet.id())
+                        .filter(v -> v.petId().equals(pet.id()))
                         .toList())
                 );
             return owner;

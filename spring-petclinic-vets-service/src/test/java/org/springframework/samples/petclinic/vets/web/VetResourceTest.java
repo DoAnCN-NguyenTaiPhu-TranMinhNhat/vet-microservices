@@ -15,6 +15,10 @@
  */
 package org.springframework.samples.petclinic.vets.web;
 
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +33,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static java.util.Arrays.asList;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -51,16 +56,27 @@ class VetResourceTest {
     @MockBean
     SpecialtyRepository specialtyRepository;
 
+    @MockBean
+    VetJwtSupport vetJwtSupport;
+
+    @BeforeEach
+    void unscopedJwt() {
+        given(vetJwtSupport.readVeterinarianId(any())).willReturn(Optional.empty());
+        given(vetJwtSupport.readClinicId(any())).willReturn(Optional.empty());
+        given(vetJwtSupport.readClinicAdmin(any())).willReturn(false);
+    }
+
     @Test
     void shouldGetAListOfVets() throws Exception {
 
         Vet vet = new Vet();
-        vet.setId(1);
+        UUID id = UUID.fromString("3891f3b9-e16a-5f0d-8307-da55b1fed172");
+        vet.setId(id);
 
         given(vetRepository.findAll()).willReturn(asList(vet));
 
         mvc.perform(get("/vets").accept(MediaType.APPLICATION_JSON))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].id").value(1));
+            .andExpect(jsonPath("$[0].id").value(id.toString()));
     }
 }

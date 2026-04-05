@@ -14,6 +14,10 @@ public class OwnerEntityMapper implements Mapper<OwnerRequest, Owner> {
         owner.setTelephone(request.telephone());
         owner.setFirstName(request.firstName());
         owner.setLastName(request.lastName());
+		// Only on create: clinic is bound from JWT in OwnerResource (or explicit id on first save)
+		if (owner.getId() == null && request.clinicId() != null) {
+			owner.setClinicId(request.clinicId());
+		}
         return owner;
     }
 }

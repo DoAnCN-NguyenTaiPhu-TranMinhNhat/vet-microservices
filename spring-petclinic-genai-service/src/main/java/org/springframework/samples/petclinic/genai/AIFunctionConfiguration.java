@@ -1,6 +1,7 @@
 package org.springframework.samples.petclinic.genai;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -61,15 +62,14 @@ class AIFunctionConfiguration {
 
 	@Bean
 	@Description("Add a pet with the specified petTypeId, " + "to an owner identified by the ownerId. "
-			+ "The allowed Pet types IDs are only: " + "1 - cat" + "2 - dog" + "3 - lizard" + "4 - snake" + "5 - bird"
-			+ "6 - hamster")
+			+ "Allowed pet types only: 1 = cat, 2 = dog (clinic chỉ khám chó/mèo).")
 	public Function<AddPetRequest, AddedPetResponse> addPetToOwner(AIDataProvider petclinicAiProvider) {
 		return petclinicAiProvider::addPetToOwner;
 	}
 
 }
 
-record AddPetRequest(PetRequest pet, Integer ownerId) {
+record AddPetRequest(PetRequest pet, UUID ownerId) {
 }
 
 record OwnersResponse(List<OwnerDetails> owners) {

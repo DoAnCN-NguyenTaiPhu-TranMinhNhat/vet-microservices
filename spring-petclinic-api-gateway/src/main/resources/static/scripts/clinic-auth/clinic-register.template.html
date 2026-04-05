@@ -1,0 +1,59 @@
+<div class="clinic-login-screen">
+    <div class="clinic-login-screen__inner">
+        <div class="clinic-login-screen__card clinic-login-screen__card--wide card">
+            <div class="card-body p-4 p-md-5">
+                <div class="text-center mb-4">
+                    <img src="/images/favicon.png" alt="" width="56" height="56" class="mb-2">
+                    <h1 class="h4 clinic-login-screen__brand mb-1">Clinic registration</h1>
+                    <p class="clinic-login-screen__sub mb-0">Create your clinic and the first admin account</p>
+                </div>
+
+                <div class="alert alert-danger py-2" ng-if="vm.error">{{ vm.error }}</div>
+
+                <form ng-submit="vm.submit()" name="regForm" novalidate>
+                    <h6 class="text-secondary border-bottom pb-2 mb-3">Clinic</h6>
+                    <div class="mb-3">
+                        <label class="form-label" for="reg-clinic-name">Clinic name *</label>
+                        <input id="reg-clinic-name" type="text" class="form-control" ng-model="vm.clinicName" required maxlength="120">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="reg-phone">Phone</label>
+                            <input id="reg-phone" type="text" class="form-control" ng-model="vm.clinicPhone" maxlength="30">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="reg-address">Address</label>
+                            <input id="reg-address" type="text" class="form-control" ng-model="vm.clinicAddress" maxlength="255">
+                        </div>
+                    </div>
+                    <h6 class="text-secondary border-bottom pb-2 mb-3 mt-2">Account</h6>
+                    <div class="mb-3">
+                        <label class="form-label" for="reg-display">Display name *</label>
+                        <input id="reg-display" type="text" class="form-control" ng-model="vm.displayName" required maxlength="80">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="reg-email">Login email *</label>
+                        <input id="reg-email" type="email" class="form-control" ng-model="vm.email" required autocomplete="username">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="reg-password">Password * (min. 6 characters)</label>
+                        <input id="reg-password" type="password" class="form-control" ng-model="vm.password" required minlength="6"
+                               maxlength="72" autocomplete="new-password">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="reg-vet-id">Veterinarian ID (optional)</label>
+                        <input id="reg-vet-id" type="number" class="form-control" ng-model="vm.veterinarianId" placeholder="Leave empty if not linked yet">
+                    </div>
+                    <div class="d-grid gap-2 d-sm-flex justify-content-sm-between align-items-center">
+                        <button type="submit" class="btn btn-success btn-lg px-4" ng-disabled="regForm.$invalid">Register</button>
+                        <div class="small">
+                            <a ui-sref="login" class="link-success fw-medium">Already have an account — Sign in</a>
+                            <span class="text-muted mx-2">|</span>
+                            <a ui-sref="welcome" class="text-muted">Home</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

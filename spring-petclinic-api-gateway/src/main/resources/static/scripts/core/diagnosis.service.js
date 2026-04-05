@@ -3,6 +3,39 @@
 angular.module('core')
     .service('DiagnosisService', ['$http', '$q', 'ApiConfig', function($http, $q, ApiConfig) {
         var self = this;
+
+        /**
+         * Clinic UUID for training scope: stored user object, then JWT claim (customers-service always sets clinicId on tokens).
+         * Fixes feedback counting as "global" when vet_clinic_user is stale or uses clinic_id (snake_case).
+         */
+        self.readClinicIdForAi = function() {
+            try {
+                var u = JSON.parse(localStorage.getItem('vet_clinic_user') || '{}');
+                var v = u.clinicId != null && u.clinicId !== '' ? u.clinicId : u.clinic_id;
+                if (v != null && String(v).trim() !== '') {
+                    return String(v).trim();
+                }
+            } catch (e1) { /* ignore */ }
+            try {
+                var t = localStorage.getItem('vet_clinic_jwt');
+                if (!t) {
+                    return null;
+                }
+                var parts = t.split('.');
+                if (parts.length < 2) {
+                    return null;
+                }
+                var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                while (b64.length % 4) {
+                    b64 += '=';
+                }
+                var p = JSON.parse(atob(b64));
+                if (p.clinicId != null && String(p.clinicId).trim() !== '') {
+                    return String(p.clinicId).trim();
+                }
+            } catch (e2) { /* ignore */ }
+            return null;
+        };
         
         self.getAIDiagnosis = function(diagnosisData, visitId, petId, veterinarianId) {
             var url = ApiConfig.DIAGNOSIS;
@@ -10,20 +43,26 @@ angular.module('core')
             // Add query parameters only if they are provided
             var queryParams = [];
             if (visitId !== null && visitId !== undefined) {
-                queryParams.push('visitId=' + visitId);
+                queryParams.push('visitId=' + encodeURIComponent(visitId));
             }
             if (petId !== null && petId !== undefined) {
-                queryParams.push('petId=' + petId);
+                queryParams.push('petId=' + encodeURIComponent(petId));
             }
             if (veterinarianId !== null && veterinarianId !== undefined) {
-                queryParams.push('veterinarianId=' + veterinarianId);
+                queryParams.push('veterinarianId=' + encodeURIComponent(veterinarianId));
             }
             
             if (queryParams.length > 0) {
                 url += '?' + queryParams.join('&');
             }
+
+            var body = angular.extend({}, diagnosisData);
+            var resolved = self.readClinicIdForAi();
+            if (resolved && !body.clinicId) {
+                body.clinicId = resolved;
+            }
             
-            return $http.post(url, diagnosisData)
+            return $http.post(url, body)
                 .then(function(response) {
                     return response.data;
                 })
@@ -33,10 +72,17 @@ angular.module('core')
                 });
         };
         
-        self.sendFeedback = function(predictionId, feedbackData) {
-            var url = ApiConfig.FEEDBACK + predictionId + '/feedback';
-            
-            return $http.post(url, feedbackData)
+        self.sendFeedback = function(predictionId, feedbackData, clinicId) {
+            var url = ApiConfig.FEEDBACK + encodeURIComponent(predictionId) + '/feedback';
+            var body = angular.extend({}, feedbackData);
+            var cid =
+                (clinicId != null && clinicId !== undefined && String(clinicId).trim() !== '')
+                    ? String(clinicId).trim()
+                    : self.readClinicIdForAi();
+            if (cid) {
+                body.clinicId = cid;
+            }
+            return $http.post(url, body)
                 .then(function(response) {
                     return response.data;
                 })
@@ -46,8 +92,8 @@ angular.module('core')
                 });
         };
         
-        self.createDiagnosisData = function(formData, petData) {
-            return {
+        self.createDiagnosisData = function(formData, petData, clinicId) {
+            var payload = {
                 symptoms_list: Array.isArray(formData.symptomsList) ? formData.symptomsList.join(', ') : formData.symptomsList,
                 temperature: formData.temperature,
                 weight_kg: formData.weightKg,
@@ -60,6 +106,10 @@ angular.module('core')
                 vaccination_status: petData.vaccinationStatus,
                 medical_history: formData.medicalHistory || null
             };
+            if (clinicId != null && clinicId !== undefined && String(clinicId).trim() !== '') {
+                payload.clinicId = String(clinicId).trim();
+            }
+            return payload;
         };
         
         self.createFeedbackData = function(finalDiagnosis, isCorrect, confidenceRating, comments, veterinarianId, aiDiagnosis) {

@@ -15,6 +15,8 @@
  */
 package org.springframework.samples.petclinic.genai.dto;
 
+import java.util.UUID;
+
 /**
  * Simple Data Transfer Object representing a customer visit.
  *
@@ -22,7 +24,7 @@ package org.springframework.samples.petclinic.genai.dto;
  */
 public record VisitDetails(
     Integer id,
-    Integer petId,
+    UUID petId,
     String date,
     String description) {
 }

@@ -18,12 +18,13 @@ package org.springframework.samples.petclinic.api.dto;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * @author Maciej Szarlinski
  */
 public record PetDetails(
-    int id,
+    UUID id,
     String name,
     String birthDate,
     PetType type,
@@ -36,7 +37,7 @@ public record PetDetails(
     }
 
     public static final class PetDetailsBuilder {
-        private int id;
+        private UUID id;
         private String name;
         private String birthDate;
         private PetType type;
@@ -49,7 +50,7 @@ public record PetDetails(
             return new PetDetailsBuilder();
         }
 
-        public PetDetailsBuilder id(int id) {
+        public PetDetailsBuilder id(UUID id) {
             this.id = id;
             return this;
         }

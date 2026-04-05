@@ -1,9 +1,24 @@
-# Dùng chung: cùng profile với EKS (Ansible) — vet-microservices-config on-profile: deploy
+# Shared stack: same profile as EKS (Ansible) — vet-microservices-config on-profile: deploy
 x-spring-docker-env: &spring_docker_env
   SPRING_PROFILES_ACTIVE: deploy
   # All Spring containers must talk to config-server via service DNS (not localhost).
   # Without this, services fall back to http://localhost:8888 inside the container and boot with wrong defaults.
   CONFIG_SERVER_URL: http://config-server:8888/
+  # Empty JWT_SECRET in a host .env breaks JwtTokenService (needs ≥32 bytes) → container exits 1.
+  JWT_SECRET: ${JWT_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=72.0
+
+# Compose has no MySQL for core services: customers-service needs explicit JDBC + sql init.
+x-spring-customers-env: &spring_customers_env
+  SPRING_PROFILES_ACTIVE: deploy
+  CONFIG_SERVER_URL: http://config-server:8888/
+  JWT_SECRET: ${JWT_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=72.0
+  SPRING_DATASOURCE_URL: jdbc:hsqldb:mem:petclinic;DB_CLOSE_DELAY=-1
+  SPRING_DATASOURCE_USERNAME: sa
+  SPRING_DATASOURCE_PASSWORD: ""
+  SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.hsqldb.jdbc.JDBCDriver
+  SPRING_SQL_INIT_MODE: always
 
 networks:
   petclinic-net:
@@ -61,11 +76,11 @@ services:
     ports:
       - "8081:8081"
     environment:
-      <<: *spring_docker_env
+      <<: *spring_customers_env
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 768M
     depends_on:
       discovery-server:
         condition: service_healthy
@@ -242,9 +257,14 @@ services:
       MODEL_ROOT_DIR: ${MODEL_ROOT_DIR:-/app/ai_service/models}
       FINETUNE_PREVIOUS_MODEL: ${FINETUNE_PREVIOUS_MODEL:-true}
       FINETUNE_ADD_TREES: ${FINETUNE_ADD_TREES:-20}
+      # MLOps clinic dropdown: GET {CUSTOMERS_SERVICE_BASE_URL}{CUSTOMERS_CLINICS_PATH}
+      CUSTOMERS_SERVICE_BASE_URL: ${CUSTOMERS_SERVICE_BASE_URL:-http://customers-service:8081}
+      CUSTOMERS_CLINICS_CACHE_TTL_SECONDS: ${CUSTOMERS_CLINICS_CACHE_TTL_SECONDS:-60}
     depends_on:
       mlflow:
         condition: service_healthy
+      customers-service:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s

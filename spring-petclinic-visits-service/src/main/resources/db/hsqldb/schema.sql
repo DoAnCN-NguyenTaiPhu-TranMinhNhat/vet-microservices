@@ -2,10 +2,9 @@ DROP TABLE visits IF EXISTS;
 
 CREATE TABLE visits (
   id          INTEGER IDENTITY PRIMARY KEY,
-  pet_id      INTEGER NOT NULL,
+  pet_id      VARCHAR(36) NOT NULL,
   visit_date  DATE,
   description VARCHAR(8192),
-  -- Medical data fields
   temperature NUMERIC(4,1) CHECK (temperature >= 35.0 AND temperature <= 43.0),
   weight_kg NUMERIC(5,2) CHECK (weight_kg >= 0.1 AND weight_kg <= 100.0),
   symptoms_list VARCHAR(5000),

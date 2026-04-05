@@ -16,6 +16,7 @@
 package org.springframework.samples.petclinic.genai.dto;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Simple Data Transfer Object representing an owner.
@@ -23,7 +24,7 @@ import java.util.List;
  * @author Oded Shopen
  */
 public record OwnerDetails(
-    int id,
+    UUID id,
     String firstName,
     String lastName,
     String address,

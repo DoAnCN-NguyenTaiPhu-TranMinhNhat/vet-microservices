@@ -18,12 +18,13 @@ package org.springframework.samples.petclinic.api.dto;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * @author Maciej Szarlinski
  */
 public record OwnerDetails(
-    int id,
+    UUID id,
     String firstName,
     String lastName,
     String address,
@@ -32,7 +33,7 @@ public record OwnerDetails(
     List<PetDetails> pets) {
 
     @JsonIgnore
-    public List<Integer> getPetIds() {
+    public List<UUID> getPetIds() {
         return pets.stream()
             .map(PetDetails::id)
             .toList();
@@ -40,7 +41,7 @@ public record OwnerDetails(
 
 
     public static final class OwnerDetailsBuilder {
-        private int id;
+        private UUID id;
         private String firstName;
         private String lastName;
         private String address;
@@ -55,7 +56,7 @@ public record OwnerDetails(
             return new OwnerDetailsBuilder();
         }
 
-        public OwnerDetailsBuilder id(int id) {
+        public OwnerDetailsBuilder id(UUID id) {
             this.id = id;
             return this;
         }

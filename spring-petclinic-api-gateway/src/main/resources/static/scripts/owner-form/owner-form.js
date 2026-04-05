@@ -4,12 +4,12 @@ angular.module('ownerForm', ['ui.router'])
     .config(['$stateProvider', function ($stateProvider) {
         $stateProvider
             .state('ownerNew', {
-                parent: 'app',
+                parent: 'shell',
                 url: '/owners/new',
                 template: '<owner-form></owner-form>'
             })
             .state('ownerEdit', {
-                parent: 'app',
+                parent: 'shell',
                 url: '/owners/:ownerId/edit',
                 template: '<owner-form></owner-form>'
             })

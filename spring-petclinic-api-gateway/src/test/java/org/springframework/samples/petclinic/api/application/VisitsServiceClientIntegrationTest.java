@@ -11,6 +11,7 @@ import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class VisitsServiceClientIntegrationTest {
 
-    private static final Integer PET_ID = 1;
+    private static final UUID PET_ID = UUID.fromString("f4dad75f-eebf-549f-8459-4ef9798de80f");
 
     private VisitsServiceClient visitsServiceClient;
 
@@ -40,15 +41,15 @@ class VisitsServiceClientIntegrationTest {
     void getVisitsForPets_withAvailableVisitsService() {
         prepareResponse(response -> response
             .setHeader("Content-Type", "application/json")
-            .setBody("{\"items\":[{\"id\":5,\"date\":\"2018-11-15\",\"description\":\"test visit\",\"petId\":1}]}"));
+            .setBody("{\"items\":[{\"id\":5,\"date\":\"2018-11-15\",\"description\":\"test visit\",\"petId\":\"" + PET_ID + "\"}]}"));
 
-        Mono<Visits> visits = visitsServiceClient.getVisitsForPets(Collections.singletonList(1));
+        Mono<Visits> visits = visitsServiceClient.getVisitsForPets(Collections.singletonList(PET_ID));
 
         assertVisitDescriptionEquals(visits.block(), PET_ID,"test visit");
     }
 
 
-    private void assertVisitDescriptionEquals(Visits visits, int petId, String description) {
+    private void assertVisitDescriptionEquals(Visits visits, UUID petId, String description) {
         assertEquals(1, visits.items().size());
         assertNotNull(visits.items().get(0));
         assertEquals(petId, visits.items().get(0).petId());

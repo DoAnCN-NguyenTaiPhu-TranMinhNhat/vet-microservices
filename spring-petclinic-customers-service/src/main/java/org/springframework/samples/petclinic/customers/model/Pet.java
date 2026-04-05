@@ -18,10 +18,13 @@ package org.springframework.samples.petclinic.customers.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.core.style.ToStringCreator;
 
 import java.util.Date;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Simple business object representing a pet.
@@ -36,8 +39,10 @@ import java.util.Objects;
 @Table(name = "pets")
 public class Pet {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(columnDefinition = "VARCHAR(36)", length = 36)
+    private UUID id;
 
     @Column(name = "name")
     private String name;
@@ -67,7 +72,7 @@ public class Pet {
 
 
 
-    public Integer getId() {
+    public UUID getId() {
         return this.id;
     }
 
@@ -87,7 +92,7 @@ public class Pet {
         return this.owner;
     }
 
-    public void setId(Integer id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

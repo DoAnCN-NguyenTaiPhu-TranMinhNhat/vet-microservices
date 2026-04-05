@@ -31,25 +31,39 @@ You can tell Config Server to use your local Git repository by using `native` Sp
 `-Dspring.profiles.active=native -DGIT_REPO=/projects/spring-petclinic-microservices-config`
 
 ## Starting services locally with docker-compose
-In order to start entire infrastructure using Docker, you have to build images by executing
-``bash
-./mvnw clean install -P buildDocker
-``
+In order to start entire infrastructure using Docker, you have to build images by executing (from the **multi-module reactor root** `vet-microservices`, not a single module only—otherwise some service images may stay stale):
+
+```bash
+./mvnw clean install -PbuildDocker
+```
+
 This requires `Docker` or `Docker desktop` to be installed and running.
 
 Alternatively you can also build all the images on `Podman`, which requires Podman or Podman Desktop to be installed and running.
+
 ```bash
 ./mvnw clean install -PbuildDocker -Dcontainer.executable=podman
 ```
+
 By default, the Docker OCI image is build for an `linux/amd64` platform.
 For other architectures, you could change it by using the `-Dcontainer.platform` maven command line argument.
 For instance, if you target container images for an Apple M2, you could use the command line with the `linux/arm64` architecture:
+
 ```bash
-./mvnw clean install -P buildDocker -Dcontainer.platform="linux/arm64"
+./mvnw clean install -PbuildDocker -Dcontainer.platform="linux/arm64"
 ```
 
-Once images are ready, you can start them with a single command
-`docker compose up` or `podman-compose up`. 
+### Image names, `docker-compose`, and local builds
+
+The parent `pom.xml` sets `docker.image.prefix` to `springcommunity` (override with `-Ddocker.image.prefix=...` if needed). The `buildDocker` profile tags images as `${docker.image.prefix}/${project.artifactId}` (default tag `latest`), e.g. `springcommunity/spring-petclinic-api-gateway`. `docker-compose.yml` references those same names **without** a `build:` section for the Spring services: after a local `install -PbuildDocker`, Podman/Docker creates or overwrites those tags on your machine. Running `docker compose up -d` **without** `pull` uses the **local** image—i.e. your freshly built sources—not necessarily what is on Docker Hub, unless you explicitly pull or remove the local image.
+
+Once images are ready, you can start them with a single command:
+
+```bash
+docker compose up -d
+```
+
+(or `podman-compose up -d`).
 
 Containers startup order is coordinated with the `service_healthy` condition of the Docker Compose [depends-on](https://github.com/compose-spec/compose-spec/blob/main/spec.md#depends_on) expression 
 and the [healthcheck](https://github.com/compose-spec/compose-spec/blob/main/spec.md#healthcheck) of the service containers. 
@@ -66,7 +80,7 @@ are usually not enough and make the `docker-compose up` painfully slow.*
 ## Starting services locally with docker-compose and Java
 If you experience issues with running the system via docker-compose you can try running the `./scripts/run_all.sh` script that will start the infrastructure services via docker-compose and all the Java based applications via standard `nohup java -jar ...` command. The logs will be available under `${ROOT}/target/nameoftheapp.log`. 
 
-Each of the java based applications is started with the `chaos-monkey` profile in order to interact with Spring Boot Chaos Monkey. You can check out the (README)[scripts/chaos/README.md] for more information about how to use the `./scripts/chaos/call_chaos.sh` helper script to enable assaults.
+Each of the java based applications is started with the `chaos-monkey` profile in order to interact with Spring Boot Chaos Monkey. You can check out the [README](scripts/chaos/README.md) for more information about how to use the `./scripts/chaos/call_chaos.sh` helper script to enable assaults.
 
 ## Understanding the Spring Petclinic application
 

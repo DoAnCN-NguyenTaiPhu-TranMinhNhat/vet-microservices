@@ -17,12 +17,13 @@ package org.springframework.samples.petclinic.visits.model;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Repository class for <code>Visit</code> domain objects All method names are compliant with Spring Data naming conventions so this interface can easily be extended for Spring
+ * Repository class for <code>Visit</code> domain objects All method names are compliant with Spring Data JPA naming conventions so this interface can easily be extended for Spring
  * Data See here: http://static.springsource.org/spring-data/jpa/docs/current/reference/html/jpa.repositories.html#jpa.query-methods.query-creation
  *
  * @author Ken Krebs
@@ -33,10 +34,10 @@ import org.springframework.transaction.annotation.Transactional;
  */
 public interface VisitRepository extends JpaRepository<Visit, Integer> {
 
-    List<Visit> findByPetId(int petId);
+    List<Visit> findByPetId(UUID petId);
 
-    List<Visit> findByPetIdIn(Collection<Integer> petIds);
+    List<Visit> findByPetIdIn(Collection<UUID> petIds);
 
     @Transactional
-    void deleteByPetId(int petId);
+    void deleteByPetId(UUID petId);
 }

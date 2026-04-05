@@ -15,10 +15,14 @@
  */
 package org.springframework.samples.petclinic.api.application;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.samples.petclinic.api.dto.OwnerDetails;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+
+import java.util.UUID;
 
 /**
  * @author Maciej Szarlinski
@@ -32,11 +36,12 @@ public class CustomersServiceClient {
         this.webClientBuilder = webClientBuilder;
     }
 
-    public Mono<OwnerDetails> getOwner(final int ownerId) {
-        return webClientBuilder.build().get()
-            // Host = Eureka service id; port comes from registry (@LoadBalanced WebClient.Builder)
-            .uri("http://customers-service/owners/{ownerId}", ownerId)
-            .retrieve()
-            .bodyToMono(OwnerDetails.class);
+    public Mono<OwnerDetails> getOwner(final UUID ownerId, String authorization) {
+        WebClient.RequestHeadersSpec<?> spec = webClientBuilder.build().get()
+            .uri("http://customers-service/owners/{ownerId}", ownerId);
+        if (StringUtils.hasText(authorization)) {
+            spec = spec.header(HttpHeaders.AUTHORIZATION, authorization);
+        }
+        return spec.retrieve().bodyToMono(OwnerDetails.class);
     }
 }

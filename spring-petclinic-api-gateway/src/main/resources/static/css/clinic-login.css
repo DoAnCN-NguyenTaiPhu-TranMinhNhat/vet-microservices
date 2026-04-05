@@ -1,0 +1,54 @@
+/* Standalone full-viewport clinic sign-in / registration screens */
+.clinic-login-screen {
+    min-height: 100vh;
+    background: linear-gradient(145deg, #2d5a3d 0%, #1e3a2f 45%, #0f2419 100%);
+    color: #f1f1f1;
+}
+
+.clinic-login-screen__inner {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.clinic-login-screen__card {
+    width: 100%;
+    max-width: 28rem;
+    border: none;
+    border-radius: 0.75rem;
+    background: #fff;
+    color: #34302d;
+    box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.35);
+}
+
+.clinic-login-screen__card--wide {
+    max-width: 42rem;
+}
+
+.clinic-login-screen__card .form-label {
+    color: #34302d;
+    font-weight: 500;
+}
+
+.clinic-login-screen__brand {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.clinic-login-screen__sub {
+    color: #6c757d;
+    font-size: 0.95rem;
+}
+
+.clinic-login-screen__back {
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.clinic-login-screen__back:hover {
+    color: #fff;
+    text-decoration: underline;
+}

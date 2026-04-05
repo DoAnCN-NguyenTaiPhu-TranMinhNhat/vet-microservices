@@ -17,6 +17,7 @@ package org.springframework.samples.petclinic.customers.model;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -34,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
  * @author Michael Isvy
  * @author Maciej Szarlinski
  */
-public interface PetRepository extends JpaRepository<Pet, Integer> {
+public interface PetRepository extends JpaRepository<Pet, UUID> {
 
     /**
      * Retrieve all {@link PetType}s from the data store.
@@ -49,7 +50,7 @@ public interface PetRepository extends JpaRepository<Pet, Integer> {
     @Modifying
     @Transactional
     @Query("DELETE FROM Pet p WHERE p.id = :petId")
-    int hardDeleteById(@Param("petId") int petId);
+    int hardDeleteById(@Param("petId") UUID petId);
 
 }
 

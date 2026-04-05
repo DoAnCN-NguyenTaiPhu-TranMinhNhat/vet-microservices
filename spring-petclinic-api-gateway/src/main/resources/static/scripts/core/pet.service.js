@@ -5,7 +5,7 @@ angular.module('core')
         var self = this;
         
         self.getPetDetails = function(petId, ownerId) {
-            console.log('PetService: Looking for petId:', petId, 'in ownerId:', ownerId, '(0-based indexing)');
+            console.log('PetService: Looking for petId:', petId, 'in ownerId:', ownerId);
             
             // Use the same API endpoint as owner details controller
             return $http.get('/api/customer/owners/' + ownerId)
@@ -18,7 +18,7 @@ angular.module('core')
                         for (var j = 0; j < owner.pets.length; j++) {
                             var pet = owner.pets[j];
                             console.log('PetService: Checking pet - ID:', pet.id, 'Name:', pet.name);
-                            if (pet.id === petId) {
+                            if (String(pet.id) === String(petId)) {
                                 console.log('PetService: Found matching pet:', pet.name);
                                 return pet;
                             }

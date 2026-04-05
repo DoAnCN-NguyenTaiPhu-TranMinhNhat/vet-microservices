@@ -18,17 +18,21 @@ package org.springframework.samples.petclinic.genai.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * Simple Data Transfer Object representing a Pet request.
  *
  * @author Oded Shopen
  */
-public record PetRequest(int id,
+public record PetRequest(UUID id,
                   @JsonFormat(pattern = "yyyy-MM-dd")
                   Date birthDate,
                   String name,
-                  int typeId
+                  int typeId,
+                  String gender,
+                  String vaccinationStatus,
+                  String medicalNotes
 ) {
 
 }

@@ -15,6 +15,9 @@
  */
 package org.springframework.samples.petclinic.customers.model;
 
+import java.util.List;
+import java.util.UUID;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -27,4 +30,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * @author Michael Isvy
  * @author Maciej Szarlinski
  */
-public interface OwnerRepository extends JpaRepository<Owner, Integer> { }
+public interface OwnerRepository extends JpaRepository<Owner, UUID> {
+
+	List<Owner> findByClinicIdOrderByLastNameAscFirstNameAsc(UUID clinicId);
+}

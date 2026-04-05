@@ -55,6 +55,15 @@ angular.module('ownerForm')
                     $state.go('ownerDetails', {ownerId: ownerId});
                 });
             } else {
+                var u = {};
+                try {
+                    u = JSON.parse(localStorage.getItem('vet_clinic_user') || '{}');
+                } catch (e) {
+                    u = {};
+                }
+                if (u.clinicId != null && u.clinicId !== '') {
+                    self.owner.clinicId = u.clinicId;
+                }
                 $http.post('api/customer/owners', self.owner).then(function () {
                     $state.go('owners');
                 });

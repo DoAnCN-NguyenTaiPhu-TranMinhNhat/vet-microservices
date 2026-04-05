@@ -52,11 +52,11 @@ angular.module('ownerDetails')
                 return;
             }
             if (!confirm('Delete this pet?')) return;
-            var pid = Number(petId);
-            $http.delete('api/orch/owners/' + $stateParams.ownerId + '/pets/' + pid).then(function () {
+            var pid = String(petId);
+            $http.delete('api/orch/owners/' + encodeURIComponent($stateParams.ownerId) + '/pets/' + encodeURIComponent(pid)).then(function () {
                 // optimistic UI update in case reload is delayed
                 if (self.owner && Array.isArray(self.owner.pets)) {
-                    self.owner.pets = self.owner.pets.filter(function (p) { return p && Number(p.id) !== pid; });
+                    self.owner.pets = self.owner.pets.filter(function (p) { return p && String(p.id) !== pid; });
                 }
                 loadOwner();
             }).catch(function (err) {

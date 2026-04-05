@@ -1,5 +1,5 @@
 <h2>Veterinarians</h2>
-<p>
+<p ng-if="!$ctrl.restrictVetManagement">
     <a class="btn btn-primary" ui-sref="vetNew">
         <span class="fa fa-plus"></span>
         Add veterinarian
@@ -19,8 +19,8 @@
         <td><span ng-repeat="specialty in vet.specialties">{{specialty.name + ' '}}</span></td>
         <td>
             <a ui-sref="vetEdit({vetId: vet.id})">Edit</a>
-            |
-            <button type="button" class="btn btn-danger btn-sm" ng-click="$ctrl.deleteVet($event, vet.id)">Delete</button>
+            <span ng-if="!$ctrl.restrictVetManagement"> | </span>
+            <button ng-if="!$ctrl.restrictVetManagement" type="button" class="btn btn-danger btn-sm" ng-click="$ctrl.deleteVet($event, vet.id)">Delete</button>
         </td>
 
     </tr>

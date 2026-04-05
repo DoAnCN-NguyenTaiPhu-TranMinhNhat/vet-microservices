@@ -3,6 +3,11 @@ spring:
     name: customers-service
   config:
     import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888/}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          secret-key: ${JWT_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
 
 management:
   endpoints:
@@ -27,6 +32,11 @@ logging:
   pattern:
     level: "%5p [req:%X{requestId}]"
 
+# JWT: same signing secret as api-gateway. Override JWT_SECRET in production.
+
+vet:
+  clinic-auth:
+    jwt-expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 ---
 spring:

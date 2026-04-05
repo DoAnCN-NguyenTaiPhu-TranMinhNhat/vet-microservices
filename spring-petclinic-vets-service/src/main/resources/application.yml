@@ -1,6 +1,12 @@
 spring:
   application:
     name: vets-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Same HS256 secret as customers-service / gateway (compose: JWT_SECRET)
+          secret-key: ${JWT_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
   config:
     import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888/}
   cache:

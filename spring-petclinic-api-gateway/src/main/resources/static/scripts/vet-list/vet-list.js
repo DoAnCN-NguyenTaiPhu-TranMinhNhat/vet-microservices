@@ -1,10 +1,10 @@
 'use strict';
 
-angular.module('vetList', ['ui.router'])
+angular.module('vetList', ['ui.router', 'core'])
     .config(['$stateProvider', function ($stateProvider) {
         $stateProvider
             .state('vets', {
-                parent: 'app',
+                parent: 'shell',
                 url: '/vets',
                 template: '<vet-list></vet-list>'
             })

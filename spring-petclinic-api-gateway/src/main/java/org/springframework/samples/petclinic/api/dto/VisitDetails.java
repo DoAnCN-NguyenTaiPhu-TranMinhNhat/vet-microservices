@@ -15,12 +15,14 @@
  */
 package org.springframework.samples.petclinic.api.dto;
 
+import java.util.UUID;
+
 /**
  * @author Maciej Szarlinski
  */
 public record VisitDetails (
     Integer id,
-    Integer petId,
+    UUID petId,
     String date,
     String description) {
 }

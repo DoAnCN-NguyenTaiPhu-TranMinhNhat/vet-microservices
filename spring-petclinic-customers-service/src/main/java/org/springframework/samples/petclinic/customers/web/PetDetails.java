@@ -20,6 +20,7 @@ import org.springframework.samples.petclinic.customers.model.Pet;
 import org.springframework.samples.petclinic.customers.model.PetType;
 
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * @author mszarlinski@bravurasolutions.com on 2016-12-05.
@@ -27,7 +28,7 @@ import java.util.Date;
 
 record PetDetails(
 
-    long id,
+    UUID id,
 
     String name,
 

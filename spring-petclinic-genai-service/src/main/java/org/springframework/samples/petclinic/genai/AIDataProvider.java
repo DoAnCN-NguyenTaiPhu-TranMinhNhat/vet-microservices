@@ -8,8 +8,10 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.samples.petclinic.genai.dto.OwnerDetails;
 import org.springframework.samples.petclinic.genai.dto.PetDetails;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -59,6 +61,12 @@ public class AIDataProvider {
 	}
 
 	public AddedPetResponse addPetToOwner(AddPetRequest request) {
+		int typeId = request.pet().typeId();
+		if (typeId != 1 && typeId != 2) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST,
+					"Only cat (typeId=1) and dog (typeId=2) are supported");
+		}
 		return new AddedPetResponse(webClient
 	            .post()
 	            .uri(ownersHostname + "owners/"+request.ownerId()+"/pets")

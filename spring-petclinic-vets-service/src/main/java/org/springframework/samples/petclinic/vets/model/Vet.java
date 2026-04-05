@@ -18,10 +18,17 @@ package org.springframework.samples.petclinic.vets.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.xml.bind.annotation.XmlElement;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.beans.support.MutableSortDefinition;
 import org.springframework.beans.support.PropertyComparator;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Simple JavaBean domain object representing a veterinarian.
@@ -29,7 +36,7 @@ import java.util.*;
  * @author Ken Krebs
  * @author Juergen Hoeller
  * @author Sam Brannen
- * @author Arjen Poutsma
+ * @author Michael Isvy
  * @author Maciej Szarlinski
  * @author Ramazan Sakin
  */
@@ -38,8 +45,10 @@ import java.util.*;
 public class Vet {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(columnDefinition = "VARCHAR(36)", length = 36)
+    private UUID id;
 
     @Column(name = "first_name")
     @NotBlank
@@ -48,6 +57,11 @@ public class Vet {
     @Column(name = "last_name")
     @NotBlank
     private String lastName;
+
+    /** Matches {@code clinics.id} in customers-service (multi-tenant). Null = legacy / unscoped. */
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "clinic_id", columnDefinition = "VARCHAR(36)", length = 36)
+    private UUID clinicId;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "vet_specialties", joinColumns = @JoinColumn(name = "vet_id"),
@@ -83,7 +97,7 @@ public class Vet {
         }
     }
 
-    public Integer getId() {
+    public UUID getId() {
         return this.id;
     }
 
@@ -95,7 +109,7 @@ public class Vet {
         return this.lastName;
     }
 
-    public void setId(Integer id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -105,5 +119,13 @@ public class Vet {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public UUID getClinicId() {
+        return this.clinicId;
+    }
+
+    public void setClinicId(UUID clinicId) {
+        this.clinicId = clinicId;
     }
 }

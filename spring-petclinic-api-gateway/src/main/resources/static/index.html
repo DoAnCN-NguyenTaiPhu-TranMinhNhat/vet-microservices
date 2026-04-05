@@ -11,9 +11,10 @@
 
     <link rel="shortcut icon" type="image/x-icon" href="/images/favicon.png"/>
 
-    <title>PetClinic :: a Spring Framework demonstration</title>
+    <title>Vet Pet Clinic</title>
     <link rel="stylesheet" href="/webjars/bootstrap/css/bootstrap.min.css"/>
     <link rel="stylesheet" href="/css/petclinic.css"/>
+    <link rel="stylesheet" href="/css/clinic-login.css"/>
     <link rel="stylesheet" href="/webjars/font-awesome/css/font-awesome.min.css">
 
     <script src="/webjars/bootstrap/js/bootstrap.min.js"></script>
@@ -30,6 +31,10 @@
     <script src="/scripts/core/pet.service.js"></script>
     <script src="/scripts/core/visit.service.js"></script>
     <script src="/scripts/core/diagnosis.service.js"></script>
+
+    <script src="/scripts/clinic-auth/clinic-auth.js"></script>
+    <script src="/scripts/clinic-auth/clinic-login.component.js"></script>
+    <script src="/scripts/clinic-auth/clinic-register.component.js"></script>
 
     <script src="/scripts/owner-list/owner-list.js"></script>
     <script src="/scripts/owner-list/owner-list.controller.js"></script>
@@ -60,20 +65,15 @@
     <script src="/scripts/vet-form/vet-form.component.js"></script>
 
     <script src="/scripts/infrastructure/infrastructure.js"></script>
+    <script src="/scripts/infrastructure/auth-request.interceptor.js"></script>
     <script src="/scripts/infrastructure/httpErrorHandlingInterceptor.js"></script>
+    <script src="/scripts/genai/chat.js"></script>
 </head>
 
 <body>
-<layout-nav></layout-nav>
-<div class="container-fluid">
-    <div class="container xd-container">
-        <div ui-view=""></div>
-    </div>
-</div>
+<div ui-view=""></div>
 
 <script src="/webjars/marked/marked.min.js"></script>
-
-<layout-footer></layout-footer>
 </body>
 
 </html>

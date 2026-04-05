@@ -2,8 +2,10 @@ package org.springframework.samples.petclinic.genai;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.samples.petclinic.genai.auth.ClinicAuthJwtSupport;
 import org.springframework.samples.petclinic.genai.dto.AiDiagnosisRequest;
 import org.springframework.samples.petclinic.genai.dto.AiDiagnosisResponse;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +13,8 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/")
@@ -21,39 +25,95 @@ public class DiagnosisController {
     private final AiDiagnosisClient aiDiagnosisClient;
     private final ContinuousTrainingClient trainingClient;
     private final ScheduledTrainingService scheduledTrainingService;
+    private final ClinicAuthJwtSupport clinicAuthJwt;
 
     public DiagnosisController(AiDiagnosisClient aiDiagnosisClient, 
                               ContinuousTrainingClient trainingClient,
-                              ScheduledTrainingService scheduledTrainingService) {
+                              ScheduledTrainingService scheduledTrainingService,
+                              ClinicAuthJwtSupport clinicAuthJwt) {
         this.aiDiagnosisClient = aiDiagnosisClient;
         this.trainingClient = trainingClient;
         this.scheduledTrainingService = scheduledTrainingService;
+        this.clinicAuthJwt = clinicAuthJwt;
+    }
+
+    /** When JSON body has no clinicId, use the same claim as customers-service JWT (clinic login). */
+    private AiDiagnosisRequest mergeClinicFromJwt(AiDiagnosisRequest r, String authorization) {
+        if (r.clinicId() != null) {
+            return r;
+        }
+        Optional<UUID> fromJwt = clinicAuthJwt.readClinicId(authorization);
+        if (fromJwt.isEmpty()) {
+            logger.warn(
+                "AiDiagnosisRequest has clinicId=null and JWT has no clinicId — prediction will not be scoped to a clinic. "
+                    + "Ensure Authorization Bearer is sent (gateway) and JWT_SECRET matches customers-service.");
+            return r;
+        }
+        logger.info("Resolved clinicId from JWT for diagnosis: {}", fromJwt.get());
+        return new AiDiagnosisRequest(
+            r.animal_type(),
+            r.gender(),
+            r.age_months(),
+            r.weight_kg(),
+            r.temperature(),
+            r.heart_rate(),
+            r.current_season(),
+            r.vaccination_status(),
+            r.medical_history(),
+            r.symptoms_list(),
+            r.symptom_duration(),
+            fromJwt.get(),
+            r.petId(),
+            r.visitId());
     }
 
     @PostMapping("/diagnosis")
     public Mono<AiDiagnosisResponse> diagnosis(@RequestBody AiDiagnosisRequest request,
                                                @RequestParam(required = false) Integer visitId,
-                                               @RequestParam(required = false) Integer petId,
-                                               @RequestParam(required = false) Integer veterinarianId) {
+                                               @RequestParam(required = false) UUID petId,
+                                               @RequestParam(required = false) UUID veterinarianId,
+                                               @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         
         logger.info("Received diagnosis request for visit: {}, pet: {}, vet: {}", 
                    visitId, petId, veterinarianId);
+
+        final AiDiagnosisRequest ctx = withVisitContext(mergeClinicFromJwt(request, authorization), visitId, petId);
         
         if (petId != null && veterinarianId != null && visitId != null) {
             // Full training integration with visit
-            return trainingClient.diagnoseWithTraining(request, visitId, petId, veterinarianId);
+            return trainingClient.diagnoseWithTraining(ctx, visitId, petId, veterinarianId);
         } else if (petId != null && veterinarianId != null) {
             // Simple diagnosis without visit - still log for training
-            return trainingClient.diagnoseWithoutVisit(request, petId, veterinarianId);
+            return trainingClient.diagnoseWithoutVisit(ctx, petId, veterinarianId);
         } else {
             // Simple diagnosis without training (no predictionId)
-            return Mono.fromCallable(() -> aiDiagnosisClient.predict(request));
+            return Mono.fromCallable(() -> aiDiagnosisClient.predict(ctx));
         }
     }
 
+    private static AiDiagnosisRequest withVisitContext(AiDiagnosisRequest r, Integer visitId, UUID petId) {
+        return new AiDiagnosisRequest(
+            r.animal_type(),
+            r.gender(),
+            r.age_months(),
+            r.weight_kg(),
+            r.temperature(),
+            r.heart_rate(),
+            r.current_season(),
+            r.vaccination_status(),
+            r.medical_history(),
+            r.symptoms_list(),
+            r.symptom_duration(),
+            r.clinicId(),
+            petId != null ? petId : r.petId(),
+            visitId != null ? visitId : r.visitId()
+        );
+    }
+
     @PostMapping("/diagnosis/{predictionId}/feedback")
-    public Mono<Map<String, Object>> saveFeedback(@PathVariable Long predictionId,
-                                                 @RequestBody FeedbackRequest feedback) {
+    public Mono<Map<String, Object>> saveFeedback(@PathVariable UUID predictionId,
+                                                 @RequestBody FeedbackRequest feedback,
+                                                 @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         logger.info("Saving feedback for prediction: {}", predictionId);
 
         // FastAPI expects `final_diagnosis` as a non-null string.
@@ -61,6 +121,14 @@ public class DiagnosisController {
         // fail fast here with a clearer error.
         if (feedback == null || feedback.getFinalDiagnosis() == null || feedback.getFinalDiagnosis().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "finalDiagnosis is required (select Target Diagnosis before reject)");
+        }
+
+        UUID clinicForTraining = feedback.getClinicId();
+        if (clinicForTraining == null) {
+            clinicForTraining = clinicAuthJwt.readClinicId(authorization).orElse(null);
+        }
+        if (clinicForTraining != null) {
+            logger.info("Feedback scoped to clinicId={} (body or JWT)", clinicForTraining);
         }
         
         return trainingClient.processFinalDiagnosis(
@@ -70,7 +138,9 @@ public class DiagnosisController {
             feedback.getAiDiagnosis(),
             feedback.getConfidenceRating(),
             feedback.getComments(),
-            feedback.getVeterinarianId()
+            feedback.getVeterinarianId(),
+            clinicForTraining,
+            feedback.getTrainingPool()
         );
     }
 
@@ -106,7 +176,11 @@ public class DiagnosisController {
         private boolean isCorrect;
         private int confidenceRating;
         private String comments;
-        private int veterinarianId;
+        private UUID veterinarianId;
+        /** When set, automatic training eligibility/trigger is scoped to this clinic (vet-ai clinic_id). */
+        private UUID clinicId;
+        /** Optional override: GLOBAL or CLINIC_ONLY (vet-ai DoctorFeedback.training_pool). */
+        private String trainingPool;
 
         // Getters and setters
         public String getFinalDiagnosis() { return finalDiagnosis; }
@@ -124,8 +198,14 @@ public class DiagnosisController {
         public String getComments() { return comments; }
         public void setComments(String comments) { this.comments = comments; }
         
-        public int getVeterinarianId() { return veterinarianId; }
-        public void setVeterinarianId(int veterinarianId) { this.veterinarianId = veterinarianId; }
+        public UUID getVeterinarianId() { return veterinarianId; }
+        public void setVeterinarianId(UUID veterinarianId) { this.veterinarianId = veterinarianId; }
+
+        public UUID getClinicId() { return clinicId; }
+        public void setClinicId(UUID clinicId) { this.clinicId = clinicId; }
+
+        public String getTrainingPool() { return trainingPool; }
+        public void setTrainingPool(String trainingPool) { this.trainingPool = trainingPool; }
     }
 
     public static class TrainingRequest {

@@ -16,14 +16,17 @@
 package org.springframework.samples.petclinic.customers.web;
 
 import io.micrometer.core.annotation.Timed;
-import jakarta.validation.constraints.Min;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.samples.petclinic.customers.auth.ClinicScopeService;
 import org.springframework.samples.petclinic.customers.model.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * @author Juergen Hoeller
@@ -40,10 +43,12 @@ class PetResource {
 
     private final PetRepository petRepository;
     private final OwnerRepository ownerRepository;
+    private final ClinicScopeService clinicScopeService;
 
-    PetResource(PetRepository petRepository, OwnerRepository ownerRepository) {
+    PetResource(PetRepository petRepository, OwnerRepository ownerRepository, ClinicScopeService clinicScopeService) {
         this.petRepository = petRepository;
         this.ownerRepository = ownerRepository;
+        this.clinicScopeService = clinicScopeService;
     }
 
     @GetMapping("/petTypes")
@@ -54,43 +59,46 @@ class PetResource {
     @PostMapping("/owners/{ownerId}/pets")
     @ResponseStatus(HttpStatus.CREATED)
     public Pet processCreationForm(
-        @RequestBody PetRequest petRequest,
-        @PathVariable("ownerId") @Min(1) int ownerId) {
+        @RequestBody PetCreateRequest petCreateRequest,
+        @PathVariable("ownerId") UUID ownerId,
+        HttpServletRequest request) {
 
         Owner owner = ownerRepository.findById(ownerId)
             .orElseThrow(() -> new ResourceNotFoundException("Owner " + ownerId + " not found"));
+        clinicScopeService.assertOwnerInClinicScope(owner, request);
 
         final Pet pet = new Pet();
         owner.addPet(pet);
-        return save(pet, petRequest);
+        return save(pet, petCreateRequest.toPetRequest());
     }
 
     @PutMapping("/owners/*/pets/{petId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void processUpdateForm(@RequestBody PetRequest petRequest) {
-        int petId = petRequest.id();
+    public void processUpdateForm(@RequestBody PetRequest petRequest, HttpServletRequest request) {
+        UUID petId = petRequest.id();
         Pet pet = findPetById(petId);
+        clinicScopeService.assertPetInClinicScope(pet, request);
         save(pet, petRequest);
     }
 
     @DeleteMapping("/owners/{ownerId}/pets/{petId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deletePet(
-        @PathVariable("ownerId") @Min(1) int ownerId,
-        @PathVariable("petId") int petId
+        @PathVariable("ownerId") UUID ownerId,
+        @PathVariable("petId") UUID petId,
+        HttpServletRequest request
     ) {
         Owner owner = ownerRepository.findById(ownerId)
             .orElseThrow(() -> new ResourceNotFoundException("Owner " + ownerId + " not found"));
+        clinicScopeService.assertOwnerInClinicScope(owner, request);
 
         Pet pet = petRepository.findById(petId)
             .orElseThrow(() -> new ResourceNotFoundException("Pet " + petId + " not found"));
 
-        if (pet.getOwner() == null || pet.getOwner().getId() == null || pet.getOwner().getId() != owner.getId()) {
+        if (pet.getOwner() == null || pet.getOwner().getId() == null || !pet.getOwner().getId().equals(owner.getId())) {
             throw new ResourceNotFoundException("Pet " + petId + " not found for owner " + ownerId);
         }
 
-        // HSQLDB identity can generate id=0; Hibernate may treat 0 specially in entity remove.
-        // Use a hard JPQL delete to guarantee removal.
         int deleted = petRepository.hardDeleteById(petId);
         if (deleted == 0) {
             throw new ResourceNotFoundException("Pet " + petId + " not found");
@@ -99,10 +107,18 @@ class PetResource {
 
     private Pet save(final Pet pet, final PetRequest petRequest) {
 
+        int typeId = petRequest.typeId();
+        if (typeId != 1 && typeId != 2) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Only cat (typeId=1) and dog (typeId=2) are supported"
+            );
+        }
+
         pet.setName(petRequest.name());
         pet.setBirthDate(petRequest.birthDate());
 
-        petRepository.findPetTypeById(petRequest.typeId())
+        petRepository.findPetTypeById(typeId)
             .ifPresent(pet::setType);
 
         // Save AI fields
@@ -115,13 +131,14 @@ class PetResource {
     }
 
     @GetMapping("owners/*/pets/{petId}")
-    public PetDetails findPet(@PathVariable("petId") int petId) {
+    public PetDetails findPet(@PathVariable("petId") UUID petId, HttpServletRequest request) {
         Pet pet = findPetById(petId);
+        clinicScopeService.assertPetInClinicScope(pet, request);
         return new PetDetails(pet);
     }
 
 
-    private Pet findPetById(int petId) {
+    private Pet findPetById(UUID petId) {
         return petRepository.findById(petId)
             .orElseThrow(() -> new ResourceNotFoundException("Pet " + petId + " not found"));
     }

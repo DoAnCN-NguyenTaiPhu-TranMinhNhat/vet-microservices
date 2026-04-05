@@ -3,6 +3,7 @@ package org.springframework.samples.petclinic.genai.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public record AiDiagnosisResponse(
         String diagnosis,
@@ -10,24 +11,19 @@ public record AiDiagnosisResponse(
         @JsonProperty("top_k") List<TopKItem> top_k,
         @JsonProperty("modelVersion") String modelVersion,
         @JsonProperty("predictions") List<Map<String, Object>> predictions,
-        @JsonProperty("predictionId") Long predictionId
+        @JsonProperty("predictionId") UUID predictionId,
+        /** Echo from vet-ai /predict: canonical clinic UUID string applied to the prediction row. */
+        @JsonProperty("clinicId") String clinicId
 ) {
     public record TopKItem(@JsonProperty("label") String label, @JsonProperty("prob") Double prob) {
     }
-    
-    // Constructor for backward compatibility
+
     public AiDiagnosisResponse(String diagnosis, Double confidence, List<TopKItem> top_k) {
-        this(diagnosis, confidence, top_k, "v1.0", List.of(), null);
+        this(diagnosis, confidence, top_k, "v1.0", List.of(), null, null);
     }
-    
-    // Full constructor
-    public AiDiagnosisResponse(String diagnosis, Double confidence, List<TopKItem> top_k, 
-                              String modelVersion, List<Map<String, Object>> predictions, Long predictionId) {
-        this.diagnosis = diagnosis;
-        this.confidence = confidence;
-        this.top_k = top_k;
-        this.modelVersion = modelVersion;
-        this.predictions = predictions;
-        this.predictionId = predictionId;
+
+    public AiDiagnosisResponse(String diagnosis, Double confidence, List<TopKItem> top_k,
+                              String modelVersion, List<Map<String, Object>> predictions, UUID predictionId) {
+        this(diagnosis, confidence, top_k, modelVersion, predictions, predictionId, null);
     }
 }

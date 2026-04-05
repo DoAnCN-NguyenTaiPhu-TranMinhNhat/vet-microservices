@@ -21,6 +21,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.UUID;
 
 import static java.util.stream.Collectors.joining;
 
@@ -39,7 +40,7 @@ public class VisitsServiceClient {
         this.webClientBuilder = webClientBuilder;
     }
 
-    public Mono<Visits> getVisitsForPets(final List<Integer> petIds) {
+    public Mono<Visits> getVisitsForPets(final List<UUID> petIds) {
         return webClientBuilder.build()
             .get()
             .uri(hostname + "pets/visits?petId={petId}", joinIds(petIds))
@@ -47,7 +48,7 @@ public class VisitsServiceClient {
             .bodyToMono(Visits.class);
     }
 
-    private String joinIds(List<Integer> petIds) {
+    private String joinIds(List<UUID> petIds) {
         return petIds.stream().map(Object::toString).collect(joining(","));
     }
 

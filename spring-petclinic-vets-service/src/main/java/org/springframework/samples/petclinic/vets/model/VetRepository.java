@@ -15,6 +15,9 @@
  */
 package org.springframework.samples.petclinic.vets.model;
 
+import java.util.List;
+import java.util.UUID;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -27,5 +30,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * @author Michael Isvy
  * @author Maciej Szarlinski
  */
-public interface VetRepository extends JpaRepository<Vet, Integer> {
+public interface VetRepository extends JpaRepository<Vet, UUID> {
+
+    List<Vet> findByClinicIdOrderByLastNameAscFirstNameAsc(UUID clinicId);
 }
