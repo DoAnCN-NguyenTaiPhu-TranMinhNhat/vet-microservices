@@ -166,6 +166,10 @@ services:
     networks: [petclinic-net]
     ports:
       - "3030:3000"
+    volumes:
+      # Live-reload dashboards/provisioning when files change (no image rebuild each edit)
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../vet-infra/ansible/grafana/dashboards:/var/lib/grafana/dashboards:ro
     deploy:
       resources:
         limits:

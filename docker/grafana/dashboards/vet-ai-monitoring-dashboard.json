@@ -1,0 +1,345 @@
+{
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "5.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "5.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "graph",
+      "name": "Graph",
+      "version": "5.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "singlestat",
+      "name": "Singlestat",
+      "version": "5.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "grafana-piechart-panel",
+      "name": "Pie Chart",
+      "version": "1.6.2"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "iteration": 1775648000000,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "points": false,
+      "renderer": "flot",
+      "targets": [
+        {
+          "expr": "sum(rate(vetai_inference_requests_total[5m]))",
+          "legendFormat": "RPS",
+          "refId": "A"
+        }
+      ],
+      "title": "Vet-AI Inference RPS (5m)",
+      "tooltip": {
+        "shared": true,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "mode": "time",
+        "show": true
+      },
+      "yaxes": [
+        {
+          "format": "ops",
+          "min": "0",
+          "show": true
+        },
+        {
+          "format": "short",
+          "show": true
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "points": false,
+      "renderer": "flot",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vetai_inference_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(vetai_inference_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "B"
+        }
+      ],
+      "title": "Inference Latency p50/p95 (5m)",
+      "tooltip": {
+        "shared": true,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "mode": "time",
+        "show": true
+      },
+      "yaxes": [
+        {
+          "format": "s",
+          "min": "0",
+          "show": true
+        },
+        {
+          "format": "short",
+          "show": true
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "sum(vetai_feedback_accept_current) or vector(0)",
+          "legendFormat": "accept",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(vetai_feedback_reject_current) or vector(0)",
+          "legendFormat": "reject",
+          "refId": "B"
+        }
+      ],
+      "title": "Doctor Feedback Share (Accept vs Reject)",
+      "tooltip": {
+        "shared": true,
+        "value_type": "individual"
+      },
+      "type": "grafana-piechart-panel",
+      "pieType": "pie",
+      "strokeWidth": 1,
+      "legendType": "Under graph",
+      "valueName": "current",
+      "format": "short",
+      "legend": {
+        "show": true,
+        "values": true
+      },
+      "nullPointMode": "null as zero"
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "points": false,
+      "renderer": "flot",
+      "targets": [
+        {
+          "expr": "(sum(increase(vetai_feedback_accept_total[1h])) or vector(0)) / clamp_min((sum(increase(vetai_feedback_accept_total[1h])) or vector(0)) + (sum(increase(vetai_feedback_reject_total[1h])) or vector(0)), 1)",
+          "legendFormat": "agree-rate(1h)",
+          "refId": "A"
+        }
+      ],
+      "title": "AI Agree Rate (1h)",
+      "tooltip": {
+        "shared": true,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "mode": "time",
+        "show": true
+      },
+      "yaxes": [
+        {
+          "format": "percentunit",
+          "min": "0",
+          "max": "1",
+          "show": true
+        },
+        {
+          "format": "short",
+          "show": true
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 5,
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "points": false,
+      "renderer": "flot",
+      "targets": [
+        {
+          "expr": "sum by (status) (vetai_training_job_runs_total)",
+          "legendFormat": "runs {{status}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (status) (vetai_training_jobs)",
+          "legendFormat": "current {{status}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Training Runs and Current Status",
+      "tooltip": {
+        "shared": true,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "mode": "time",
+        "show": true
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "min": "0",
+          "show": true
+        },
+        {
+          "format": "short",
+          "show": true
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 6,
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "points": false,
+      "renderer": "flot",
+      "targets": [
+        {
+          "expr": "sum by (scope, result) (vetai_model_reload_total)",
+          "legendFormat": "{{scope}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vetai_training_duration_seconds_bucket[1h])) by (le))",
+          "legendFormat": "training p95 (1h)",
+          "refId": "B"
+        }
+      ],
+      "title": "Model Reload and Training Duration",
+      "tooltip": {
+        "shared": true,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "mode": "time",
+        "show": true
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "min": "0",
+          "show": true
+        },
+        {
+          "format": "s",
+          "min": "0",
+          "show": true
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 16,
+  "style": "dark",
+  "tags": [
+    "vet-ai",
+    "mlops",
+    "monitoring"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Vet-AI Monitoring",
+  "uid": "vet-ai-monitoring",
+  "version": 2
+}

@@ -1,5 +1,7 @@
 package org.springframework.samples.petclinic.genai;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -173,6 +175,12 @@ public class DiagnosisController {
     public static class FeedbackRequest {
         private String finalDiagnosis;
         private String aiDiagnosis;
+        /**
+         * UI có thể gửi `isCorrect` (camelCase). Jackson lại suy ra property name từ getter `isCorrect()` là `correct`,
+         * nên nếu không alias thì field này sẽ luôn default false (=> bị tính reject hết).
+         */
+        @JsonProperty("isCorrect")
+        @JsonAlias({"correct", "is_correct"})
         private boolean isCorrect;
         private int confidenceRating;
         private String comments;
@@ -189,8 +197,11 @@ public class DiagnosisController {
         public String getAiDiagnosis() { return aiDiagnosis; }
         public void setAiDiagnosis(String aiDiagnosis) { this.aiDiagnosis = aiDiagnosis; }
         
+        @JsonProperty("isCorrect")
         public boolean isCorrect() { return isCorrect; }
-        public void setCorrect(boolean correct) { isCorrect = correct; }
+
+        @JsonProperty("isCorrect")
+        public void setIsCorrect(boolean isCorrect) { this.isCorrect = isCorrect; }
         
         public int getConfidenceRating() { return confidenceRating; }
         public void setConfidenceRating(int confidenceRating) { this.confidenceRating = confidenceRating; }
