@@ -124,6 +124,20 @@ public class DiagnosisController {
         if (feedback == null || feedback.getFinalDiagnosis() == null || feedback.getFinalDiagnosis().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "finalDiagnosis is required (select Target Diagnosis before reject)");
         }
+        if (feedback.getAiDiagnosis() != null && !feedback.getAiDiagnosis().isBlank()) {
+            boolean sameDiagnosis = feedback.getFinalDiagnosis().trim()
+                    .equalsIgnoreCase(feedback.getAiDiagnosis().trim());
+            if (feedback.isCorrect() && !sameDiagnosis) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Inconsistent feedback: accept requires finalDiagnosis equals aiDiagnosis");
+            }
+            if (!feedback.isCorrect() && sameDiagnosis) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Inconsistent feedback: reject requires finalDiagnosis differs from aiDiagnosis");
+            }
+        }
 
         UUID clinicForTraining = feedback.getClinicId();
         if (clinicForTraining == null) {
