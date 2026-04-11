@@ -82,7 +82,7 @@ angular.module('core')
             if (cid) {
                 body.clinicId = cid;
             }
-            return $http.post(url, body)
+            return $http.post(url, body, { skipGlobalErrorAlert: true })
                 .then(function(response) {
                     return response.data;
                 })

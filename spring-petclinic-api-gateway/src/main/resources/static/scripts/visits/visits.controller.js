@@ -1,9 +1,9 @@
 'use strict';
 
 angular.module('visits')
-    .controller('VisitsController', ['$http', '$state', '$stateParams', '$filter', 
+    .controller('VisitsController', ['$http', '$state', '$stateParams', '$filter', '$timeout',
                                   'AuthService', 'PetService', 'VisitService', 'DiagnosisService',
-                                  function ($http, $state, $stateParams, $filter, 
+                                  function ($http, $state, $stateParams, $filter, $timeout,
                                            AuthService, PetService, VisitService, DiagnosisService) {
         var self = this;
         // UUID path params must stay strings — parseInt() truncates at the first non-digit (e.g. 76524f8a-… → 76524).
@@ -90,6 +90,9 @@ angular.module('visits')
         self.aiLoading = false;
         self.aiPrediction = null;
         self.aiError = null;
+        /** Accept/Reject feedback (inline; avoids duplicate global HTTP alerts). */
+        self.aiFeedbackNotice = null;
+        self.aiFeedbackError = null;
         
         // Loading states
         self.petLoading = true;
@@ -98,6 +101,70 @@ angular.module('visits')
         // Current veterinarian ID (loaded from session)
         self.currentVeterinarianId = null;
         
+        function normalizeDiagnosisLabel(s) {
+            if (s == null) {
+                return '';
+            }
+            return String(s).trim().toLowerCase();
+        }
+
+        /** After a failed Reject (validation or API), move focus to Target Diagnosis — not Description. */
+        function focusTargetDiagnosisSelect() {
+            $timeout(function () {
+                var el = document.getElementById('visit-target-diagnosis-select');
+                if (el && typeof el.focus === 'function') {
+                    el.focus();
+                    try {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                    } catch (e) { /* ignore */ }
+                }
+            }, 0);
+        }
+
+        /**
+         * Lấy nội dung lỗi từ Spring / FastAPI / gateway (một lần, không alert).
+         */
+        function extractFeedbackErrorMessage(error) {
+            if (!error) {
+                return 'Could not save feedback. Please try again.';
+            }
+            var d = error.data;
+            if (d && typeof d === 'object') {
+                if (d.message && String(d.message).trim()) {
+                    return String(d.message).trim();
+                }
+                if (d.error && String(d.error).trim() && d.error !== 'Bad Request') {
+                    return String(d.error).trim();
+                }
+                if (Array.isArray(d.detail)) {
+                    var parts = d.detail.map(function (e) {
+                        if (!e) {
+                            return '';
+                        }
+                        if (e.msg) {
+                            return e.msg;
+                        }
+                        return JSON.stringify(e);
+                    }).filter(Boolean);
+                    if (parts.length) {
+                        return parts.join(' ');
+                    }
+                }
+                if (Array.isArray(d.errors)) {
+                    var errs = d.errors.map(function (e) {
+                        return (e && (e.defaultMessage || e.message)) || '';
+                    }).filter(Boolean);
+                    if (errs.length) {
+                        return errs.join(' ');
+                    }
+                }
+            }
+            if (error.statusText) {
+                return error.statusText;
+            }
+            return 'Could not save feedback. Please try again.';
+        }
+
         function clinicIdForSession() {
             if (DiagnosisService.readClinicIdForAi) {
                 return DiagnosisService.readClinicIdForAi();
@@ -140,6 +207,8 @@ angular.module('visits')
             self.aiLoading = false;
             self.aiPrediction = null;
             self.aiError = null;
+            self.aiFeedbackNotice = null;
+            self.aiFeedbackError = null;
         };
         
         // Submit form - create visit first, then optionally AI diagnosis
@@ -211,6 +280,8 @@ angular.module('visits')
             self.aiLoading = true;
             self.aiError = null;
             self.aiPrediction = null;
+            self.aiFeedbackNotice = null;
+            self.aiFeedbackError = null;
 
             // Create diagnosis data using service
             var formData = {
@@ -254,6 +325,9 @@ angular.module('visits')
                 console.error('Cannot accept suggestion: No veterinarian ID');
                 return;
             }
+
+            self.aiFeedbackNotice = null;
+            self.aiFeedbackError = null;
             
             // Update UI
             self.targetDiagnosis = self.aiPrediction.diagnosis;
@@ -283,14 +357,16 @@ angular.module('visits')
             DiagnosisService.sendFeedback(predictionId, feedbackData, clinicIdForSession())
                 .then(function() {
                     console.log('Feedback sent successfully for prediction:', predictionId);
+                    self.aiFeedbackNotice = 'Feedback saved: you agreed with the AI suggestion.';
+                    self.aiFeedbackError = null;
+                    self.aiPrediction = null;
+                    self.aiError = null;
                 })
                 .catch(function(error) {
                     console.error('Failed to send feedback:', error);
+                    self.aiFeedbackError = extractFeedbackErrorMessage(error);
+                    self.aiFeedbackNotice = null;
                 });
-            
-            // Clear AI prediction
-            self.aiPrediction = null;
-            self.aiError = null;
         };
         
         self.rejectAISuggestion = function () {
@@ -303,10 +379,22 @@ angular.module('visits')
                 return;
             }
 
+            self.aiFeedbackNotice = null;
+            self.aiFeedbackError = null;
+
             // Reject requires doctor's selected final diagnosis (dropdown).
-            // If empty, we'd send null/empty to backend and FastAPI returns 422.
             if (!self.targetDiagnosis || self.targetDiagnosis.toString().trim() === "") {
-                alert('Please select a Target Diagnosis before rejecting the AI suggestion.');
+                self.aiFeedbackError = 'Please select a Target Diagnosis before rejecting the AI suggestion.';
+                focusTargetDiagnosisSelect();
+                return;
+            }
+
+            var aiLabel = normalizeDiagnosisLabel(self.aiPrediction.diagnosis);
+            var targetLabel = normalizeDiagnosisLabel(self.targetDiagnosis);
+            if (aiLabel === targetLabel) {
+                self.aiFeedbackError = 'Invalid reject: your Target Diagnosis matches the AI suggestion. '
+                    + 'Choose a different diagnosis, or use Accept if you agree with the AI.';
+                focusTargetDiagnosisSelect();
                 return;
             }
             
@@ -335,18 +423,16 @@ angular.module('visits')
             DiagnosisService.sendFeedback(predictionId, feedbackData, clinicIdForSession())
                 .then(function() {
                     console.log('Rejection feedback sent successfully for prediction:', predictionId);
+                    self.aiFeedbackNotice = 'Feedback saved: you rejected the AI suggestion with a different diagnosis.';
+                    self.aiFeedbackError = null;
+                    self.aiPrediction = null;
+                    self.aiError = null;
                 })
                 .catch(function(error) {
-                    // Backend may return 400 with message when finalDiagnosis is missing.
-                    // Show it as UI notification instead of only logging to console.
-                    var msg = error && (error.data?.message || error.data?.error) ? (error.data.message || error.data.error) : null;
-                    if (!msg && error && error.statusText) msg = error.statusText;
-                    if (!msg) msg = 'Failed to send rejection feedback. Please try again.';
-                    alert(msg);
+                    console.error('Failed to send rejection feedback:', error);
+                    self.aiFeedbackError = extractFeedbackErrorMessage(error);
+                    self.aiFeedbackNotice = null;
+                    focusTargetDiagnosisSelect();
                 });
-            
-            // Clear AI prediction
-            self.aiPrediction = null;
-            self.aiError = null;
         };
     }]);

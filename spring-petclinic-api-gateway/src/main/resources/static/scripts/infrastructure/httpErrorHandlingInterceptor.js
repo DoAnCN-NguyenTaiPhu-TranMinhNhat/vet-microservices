@@ -20,6 +20,11 @@ angular.module('infrastructure')
                     return Promise.reject(response);
                 }
 
+                // Visits page handles feedback errors (banner); skip duplicate global alert.
+                if (response.config && response.config.skipGlobalErrorAlert) {
+                    return Promise.reject(response);
+                }
+
                 console.log('HTTP Error Interceptor - Response:', response);
 
                 var error = response.data || {};

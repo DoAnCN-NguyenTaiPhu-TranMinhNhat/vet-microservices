@@ -61,13 +61,13 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "sum(rate(vetai_inference_requests_total[5m]))",
+          "expr": "sum(rate(vetai_inference_requests_total[2m]))",
           "legendFormat": "RPS",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Vet-AI Inference RPS (5m)",
+      "title": "Vet-AI Inference RPS (2m)",
       "type": "timeseries"
     },
     {
@@ -112,7 +112,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(vetai_inference_latency_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(vetai_inference_latency_seconds_bucket[2m])))",
           "legendFormat": "p95",
           "range": true,
           "refId": "A"
@@ -120,13 +120,13 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(vetai_inference_latency_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(vetai_inference_latency_seconds_bucket[2m])))",
           "legendFormat": "p50",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Inference Latency p50/p95 (5m)",
+      "title": "Inference Latency p50/p95 (2m)",
       "type": "timeseries"
     },
     {
@@ -135,7 +135,8 @@
         "defaults": {
           "color": {"mode": "palette-classic"},
           "custom": {"hideFrom": {"legend": false, "tooltip": false, "viz": false}},
-          "mappings": []
+          "mappings": [],
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -153,20 +154,22 @@
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
           "expr": "sum(vetai_feedback_accept_current) or vector(0)",
+          "instant": true,
           "legendFormat": "accept",
-          "range": true,
+          "range": false,
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
           "expr": "sum(vetai_feedback_reject_current) or vector(0)",
+          "instant": true,
           "legendFormat": "reject",
-          "range": true,
+          "range": false,
           "refId": "B"
         }
       ],
-      "title": "Doctor Feedback Share (Accept vs Reject)",
+      "title": "Doctor Feedback Share (all rows in DB)",
       "type": "piechart"
     },
     {
@@ -263,7 +266,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "sum by (status) (rate(vetai_training_job_runs_total[5m]))",
+          "expr": "sum by (status) (rate(vetai_training_job_runs_total[2m]))",
           "legendFormat": "runs {{status}}",
           "range": true,
           "refId": "A"
@@ -312,7 +315,7 @@
         },
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "training p95 (5m)"},
+            "matcher": {"id": "byName", "options": "training p95 (2m)"},
             "properties": [
               {"id": "unit", "value": "s"},
               {"id": "custom.axisPlacement", "value": "right"}
@@ -330,7 +333,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "sum by (scope, result) (rate(vetai_model_reload_total[5m]))",
+          "expr": "sum by (scope, result) (rate(vetai_model_reload_total[2m]))",
           "legendFormat": "{{scope}} {{result}}",
           "range": true,
           "refId": "A"
@@ -338,8 +341,8 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(vetai_training_duration_seconds_bucket[5m])))",
-          "legendFormat": "training p95 (5m)",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(vetai_training_duration_seconds_bucket[2m])))",
+          "legendFormat": "training p95 (2m)",
           "range": true,
           "refId": "B"
         }
@@ -358,5 +361,5 @@
   "timezone": "",
   "title": "Vet-AI Monitoring",
   "uid": "vet-ai-monitoring",
-  "version": 3
+  "version": 7
 }

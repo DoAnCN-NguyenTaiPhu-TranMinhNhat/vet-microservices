@@ -106,7 +106,7 @@
 
     <div class="form-group">
         <label>Target Diagnosis</label>
-        <select class="form-control" ng-model="$ctrl.targetDiagnosis">
+        <select id="visit-target-diagnosis-select" class="form-control" ng-model="$ctrl.targetDiagnosis">
             <option value="">-- Select Diagnosis --</option>
             <option value="Parvo Virus">Parvo Virus</option>
             <option value="Care (Distemper)">Care (Distemper)</option>
@@ -144,9 +144,19 @@
             </li>
         </ul>
         <div class="btn-group">
-            <button class="btn btn-success" ng-click="$ctrl.acceptAISuggestion()">Accept</button>
-            <button class="btn btn-warning" ng-click="$ctrl.rejectAISuggestion()">Reject</button>
+            <button type="button" class="btn btn-success" ng-click="$ctrl.acceptAISuggestion()">Accept</button>
+            <button type="button" class="btn btn-warning" ng-click="$ctrl.rejectAISuggestion()">Reject</button>
         </div>
+    </div>
+
+    <!-- AI feedback (Accept/Reject); avoids duplicate global HTTP alerts -->
+    <div ng-if="$ctrl.aiFeedbackNotice" class="alert alert-success">
+        <strong>AI feedback</strong>
+        <p>{{$ctrl.aiFeedbackNotice}}</p>
+    </div>
+    <div ng-if="$ctrl.aiFeedbackError" class="alert alert-warning">
+        <strong>Feedback could not be saved</strong>
+        <p>{{$ctrl.aiFeedbackError}}</p>
     </div>
 
     <!-- AI Error -->

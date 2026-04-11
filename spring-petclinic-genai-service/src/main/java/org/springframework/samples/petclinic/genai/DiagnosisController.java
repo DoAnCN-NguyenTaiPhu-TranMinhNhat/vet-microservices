@@ -122,7 +122,9 @@ public class DiagnosisController {
         // If the UI sends null (e.g., reject without selecting Target Diagnosis),
         // fail fast here with a clearer error.
         if (feedback == null || feedback.getFinalDiagnosis() == null || feedback.getFinalDiagnosis().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "finalDiagnosis is required (select Target Diagnosis before reject)");
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "finalDiagnosis is required (select Target Diagnosis before sending feedback, especially when rejecting).");
         }
         if (feedback.getAiDiagnosis() != null && !feedback.getAiDiagnosis().isBlank()) {
             boolean sameDiagnosis = feedback.getFinalDiagnosis().trim()
@@ -130,12 +132,14 @@ public class DiagnosisController {
             if (feedback.isCorrect() && !sameDiagnosis) {
                 throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Inconsistent feedback: accept requires finalDiagnosis equals aiDiagnosis");
+                    "Invalid accept: finalDiagnosis must match the AI suggestion. "
+                        + "If you disagree, use Reject and choose a different diagnosis.");
             }
             if (!feedback.isCorrect() && sameDiagnosis) {
                 throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Inconsistent feedback: reject requires finalDiagnosis differs from aiDiagnosis");
+                    "Invalid reject: finalDiagnosis matches the AI suggestion. "
+                        + "Choose a different Target Diagnosis, or use Accept if you agree with the AI.");
             }
         }
 
