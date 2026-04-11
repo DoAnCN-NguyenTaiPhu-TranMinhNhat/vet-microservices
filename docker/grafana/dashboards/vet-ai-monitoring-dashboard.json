@@ -1,41 +1,9 @@
 {
-  "__requires": [
-    {
-      "type": "grafana",
-      "id": "grafana",
-      "name": "Grafana",
-      "version": "5.0.0"
-    },
-    {
-      "type": "datasource",
-      "id": "prometheus",
-      "name": "Prometheus",
-      "version": "5.0.0"
-    },
-    {
-      "type": "panel",
-      "id": "graph",
-      "name": "Graph",
-      "version": "5.0.0"
-    },
-    {
-      "type": "panel",
-      "id": "singlestat",
-      "name": "Singlestat",
-      "version": "5.0.0"
-    },
-    {
-      "type": "panel",
-      "id": "grafana-piechart-panel",
-      "name": "Pie Chart",
-      "version": "1.6.2"
-    }
-  ],
   "annotations": {
     "list": [
       {
         "builtIn": 1,
-        "datasource": "-- Grafana --",
+        "datasource": {"type": "datasource", "uid": "grafana"},
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -45,301 +13,350 @@
     ]
   },
   "editable": true,
-  "gnetId": null,
-  "graphTooltip": 0,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
   "id": null,
-  "iteration": 1775648000000,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
-      "datasource": "Prometheus",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "ops"
+        },
+        "overrides": []
       },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "id": 1,
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "points": false,
-      "renderer": "flot",
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
       "targets": [
         {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
           "expr": "sum(rate(vetai_inference_requests_total[5m]))",
           "legendFormat": "RPS",
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "Vet-AI Inference RPS (5m)",
-      "tooltip": {
-        "shared": true,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "mode": "time",
-        "show": true
-      },
-      "yaxes": [
-        {
-          "format": "ops",
-          "min": "0",
-          "show": true
-        },
-        {
-          "format": "short",
-          "show": true
-        }
-      ]
+      "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "s"
+        },
+        "overrides": []
       },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
       "id": 2,
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "points": false,
-      "renderer": "flot",
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(vetai_inference_latency_seconds_bucket[5m])) by (le))",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(vetai_inference_latency_seconds_bucket[5m])))",
           "legendFormat": "p95",
+          "range": true,
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(vetai_inference_latency_seconds_bucket[5m])) by (le))",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(vetai_inference_latency_seconds_bucket[5m])))",
           "legendFormat": "p50",
+          "range": true,
           "refId": "B"
         }
       ],
       "title": "Inference Latency p50/p95 (5m)",
-      "tooltip": {
-        "shared": true,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "mode": "time",
-        "show": true
-      },
-      "yaxes": [
-        {
-          "format": "s",
-          "min": "0",
-          "show": true
-        },
-        {
-          "format": "short",
-          "show": true
-        }
-      ]
+      "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"hideFrom": {"legend": false, "tooltip": false, "viz": false}},
+          "mappings": []
+        },
+        "overrides": []
       },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
       "id": 3,
+      "options": {
+        "displayLabels": ["name", "percent"],
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "values": ["value"]},
+        "pieType": "pie",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
       "targets": [
         {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
           "expr": "sum(vetai_feedback_accept_current) or vector(0)",
           "legendFormat": "accept",
+          "range": true,
           "refId": "A"
         },
         {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
           "expr": "sum(vetai_feedback_reject_current) or vector(0)",
           "legendFormat": "reject",
+          "range": true,
           "refId": "B"
         }
       ],
       "title": "Doctor Feedback Share (Accept vs Reject)",
-      "tooltip": {
-        "shared": true,
-        "value_type": "individual"
-      },
-      "type": "grafana-piechart-panel",
-      "pieType": "pie",
-      "strokeWidth": 1,
-      "legendType": "Under graph",
-      "valueName": "current",
-      "format": "short",
-      "legend": {
-        "show": true,
-        "values": true
-      },
-      "nullPointMode": "null as zero"
+      "type": "piechart"
     },
     {
-      "datasource": "Prometheus",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "percentunit"
+        },
+        "overrides": []
       },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
       "id": 4,
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "points": false,
-      "renderer": "flot",
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
       "targets": [
         {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
           "expr": "(sum(increase(vetai_feedback_accept_total[1h])) or vector(0)) / clamp_min((sum(increase(vetai_feedback_accept_total[1h])) or vector(0)) + (sum(increase(vetai_feedback_reject_total[1h])) or vector(0)), 1)",
           "legendFormat": "agree-rate(1h)",
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "AI Agree Rate (1h)",
-      "tooltip": {
-        "shared": true,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "mode": "time",
-        "show": true
-      },
-      "yaxes": [
-        {
-          "format": "percentunit",
-          "min": "0",
-          "max": "1",
-          "show": true
-        },
-        {
-          "format": "short",
-          "show": true
-        }
-      ]
+      "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "short"
+        },
+        "overrides": []
       },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
       "id": 5,
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "points": false,
-      "renderer": "flot",
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
       "targets": [
         {
-          "expr": "sum by (status) (vetai_training_job_runs_total)",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
+          "expr": "sum by (status) (rate(vetai_training_job_runs_total[5m]))",
           "legendFormat": "runs {{status}}",
+          "range": true,
           "refId": "A"
         },
         {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
           "expr": "sum by (status) (vetai_training_jobs)",
           "legendFormat": "current {{status}}",
+          "range": true,
           "refId": "B"
         }
       ],
       "title": "Training Runs and Current Status",
-      "tooltip": {
-        "shared": true,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "mode": "time",
-        "show": true
-      },
-      "yaxes": [
-        {
-          "format": "short",
-          "min": "0",
-          "show": true
-        },
-        {
-          "format": "short",
-          "show": true
-        }
-      ]
+      "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "training p95 (5m)"},
+            "properties": [
+              {"id": "unit", "value": "s"},
+              {"id": "custom.axisPlacement", "value": "right"}
+            ]
+          }
+        ]
       },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
       "id": 6,
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "points": false,
-      "renderer": "flot",
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
       "targets": [
         {
-          "expr": "sum by (scope, result) (vetai_model_reload_total)",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
+          "expr": "sum by (scope, result) (rate(vetai_model_reload_total[5m]))",
           "legendFormat": "{{scope}} {{result}}",
+          "range": true,
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(vetai_training_duration_seconds_bucket[1h])) by (le))",
-          "legendFormat": "training p95 (1h)",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(vetai_training_duration_seconds_bucket[5m])))",
+          "legendFormat": "training p95 (5m)",
+          "range": true,
           "refId": "B"
         }
       ],
       "title": "Model Reload and Training Duration",
-      "tooltip": {
-        "shared": true,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "mode": "time",
-        "show": true
-      },
-      "yaxes": [
-        {
-          "format": "short",
-          "min": "0",
-          "show": true
-        },
-        {
-          "format": "s",
-          "min": "0",
-          "show": true
-        }
-      ]
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 16,
+  "schemaVersion": 39,
   "style": "dark",
-  "tags": [
-    "vet-ai",
-    "mlops",
-    "monitoring"
-  ],
-  "templating": {
-    "list": []
-  },
-  "time": {
-    "from": "now-6h",
-    "to": "now"
-  },
+  "tags": ["vet-ai", "mlops", "monitoring"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
   "timepicker": {},
   "timezone": "",
   "title": "Vet-AI Monitoring",
   "uid": "vet-ai-monitoring",
-  "version": 2
+  "version": 3
 }
