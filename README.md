@@ -1,303 +1,315 @@
-# Distributed version of the Spring PetClinic Sample Application built with Spring Cloud and Spring AI
+# Vet Microservices — Distributed Spring PetClinic
 
-[![Build Status](https://github.com/spring-petclinic/spring-petclinic-microservices/actions/workflows/maven-build.yml/badge.svg)](https://github.com/spring-petclinic/spring-petclinic-microservices/actions/workflows/maven-build.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-This microservices branch was initially derived from [AngularJS version](https://github.com/spring-petclinic/spring-petclinic-angular1) to demonstrate how to split sample Spring application into [microservices](http://www.martinfowler.com/articles/microservices.html).
-To achieve that goal, we use Spring Cloud Gateway, Spring Cloud Circuit Breaker, Spring Cloud Config, Micrometer Tracing, Resilience4j, Open Telemetry 
-and the Eureka Service Discovery from the [Spring Cloud Netflix](https://github.com/spring-cloud/spring-cloud-netflix) technology stack.
+A **veterinary clinic** sample built as **microservices**, derived from [Spring PetClinic Microservices](https://github.com/spring-petclinic/spring-petclinic-microservices) (Spring Cloud Gateway, Eureka, Config Server, Resilience4j, OpenTelemetry) and extended with **Vet-AI** (FastAPI), MLflow, and Grafana/Prometheus.
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/spring-petclinic/spring-petclinic-microservices)
+**Table of contents**
 
-[![Open in Codeanywhere](https://codeanywhere.com/img/open-in-codeanywhere-btn.svg)](https://app.codeanywhere.com/#https://github.com/spring-petclinic/spring-petclinic-microservices)
+1. [Introduction](#1-introduction)
+2. [System architecture](#2-system-architecture)
+3. [Related repositories](#3-related-repositories)
+4. [Prerequisites](#4-prerequisites)
+5. [Clone and directory layout](#5-clone-and-directory-layout)
+6. [Build](#6-build)
+7. [Configuration](#7-configuration)
+8. [Running the system](#8-running-the-system)
+9. [Service URLs after startup](#9-service-urls-after-startup)
+10. [API and documentation](#10-api-and-documentation)
+11. [Microservices overview](#11-microservices-overview)
+12. [Integration](#12-integration)
+13. [Testing](#13-testing)
+14. [Troubleshooting](#14-troubleshooting)
+15. [Contributing and license](#15-contributing-and-license)
 
-## Starting services locally without Docker
+---
 
-Every microservice is a Spring Boot application and can be started locally using IDE or `../mvnw spring-boot:run` command.
-Please note that supporting services (Config and Discovery Server) must be started before any other application (Customers, Vets, Visits and API).
-Startup of Tracing server, Admin server, Grafana and Prometheus is optional.
-If everything goes well, you can access the following services at given location:
-* Discovery Server - http://localhost:8761
-* Config Server - http://localhost:8888
-* AngularJS frontend (API Gateway) - http://localhost:8080
-* Customers, Vets, Visits and GenAI Services - random port, check Eureka Dashboard 
-* Tracing Server (Zipkin) - http://localhost:9411/zipkin/ (we use [openzipkin](https://github.com/openzipkin/zipkin/tree/main/zipkin-server))
-* Admin Server (Spring Boot Admin) - http://localhost:9092 (docker-compose; khi chạy local không Docker: 9090)
-* Grafana Dashboards - http://localhost:3030
-* Prometheus - http://localhost:9091
+## 1. Introduction
 
-You can tell Config Server to use your local Git repository by using `native` Spring profile and setting
-`GIT_REPO` environment variable, for example:
-`-Dspring.profiles.active=native -DGIT_REPO=/projects/spring-petclinic-microservices-config`
+### 1.1 Overview
 
-## Starting services locally with docker-compose
-In order to start entire infrastructure using Docker, you have to build images by executing (from the **multi-module reactor root** `vet-microservices`, not a single module only—otherwise some service images may stay stale):
+The system consists of independent Spring Boot services registered with **Eureka**, configured centrally via **Spring Cloud Config**, and accessed through the **API Gateway**. Domain flows cover owners, pets, vets, and visits. **AI for diagnosis and training is provided by [Vet-AI](#32-ai-service-repository)** (FastAPI). The `genai-service` module can also host the upstream Spring AI **chat** feature, which is optional and separate from Vet-AI.
+
+### 1.2 Features
+
+| Area | Description |
+|------|-------------|
+| Domain | Owner/pet (Customers), vets (Vets), visits (Visits) |
+| Cloud stack | Config Server, Discovery (Eureka), API Gateway, circuit breaker |
+| Observability | Micrometer, Prometheus, Grafana, Zipkin (tracing) |
+| AI / ML | **Vet-AI** (FastAPI: `/predict`, continuous training, MLflow). Optional Spring AI **chat** (OpenAI/Azure) only if you use that upstream feature |
+
+### 1.3 Technology stack
+
+- **Java 17**, Spring Boot 3.x, Spring Cloud
+- **Docker / Podman** (images built with Maven profile `buildDocker`)
+- **HSQLDB** (default in Compose for customers-service) or **MySQL** (`mysql` profile; see [Integration](#12-integration))
+
+---
+
+## 2. System architecture
+
+### 2.1 Architecture diagram
+
+![Microservices architecture](docs/microservices-architecture-diagram.jpg)
+
+### 2.2 Components
+
+- **API Gateway**: single entry for the UI (AngularJS bundled in the gateway) and REST routing.
+- **Discovery Server**: service registry and discovery.
+- **Config Server**: configuration from Git ([vet-microservices-config](#31-config-repository)).
+- **Customers / Vets / Visits**: domain services.
+- **GenAI Service** (optional in Compose): BFF for **Vet-AI** (diagnosis, feedback, training APIs); may also wire optional upstream **LLM chat** if configured.
+- **Vet-AI, MLflow, Postgres**: ML stack (see `docker-compose.yml`).
+
+### 2.3 Communication
+
+Client → `api-gateway:8080` → Eureka → REST between services. Configuration is bootstrapped from the Config Server (`CONFIG_SERVER_URL` in containers).
+
+![Application screenshot](docs/application-screenshot.png)
+
+---
+
+## 3. Related repositories
+
+Clone the following repositories **next to each other** under the same parent folder for the paths in this README to work.
+
+### 3.1 Config repository
+
+**Repository:** [https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-microservices-config](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-microservices-config)
+
+Contains `application.yml` and per-service profiles for Spring Cloud Config. The Config Server (local or Docker) must point at this Git repository (SSH or HTTPS depending on your environment). Branch names, `deploy` profile, and other details are documented in that repository’s README.
+
+### 3.2 AI service repository
+
+**Repository:** [https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-ai](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-ai)
+
+Docker Compose in this repo builds the `vet-ai` image from `../vet-ai`. FastAPI for inference, continuous training, and MLflow. See the **vet-ai** repository for full documentation.
+
+---
+
+## 4. Prerequisites
+
+| Requirement | Notes |
+|-------------|--------|
+| JDK **17** | Matches `java.version` in `pom.xml` |
+| Maven | Use `./mvnw` from this repo |
+| Docker **or** Podman | Required to build images (`-PbuildDocker`) |
+| RAM | **≥ 8 GB** recommended for full Compose (many JVMs + Grafana + ML) |
+
+---
+
+## 5. Clone and directory layout
+
+Recommended layout (same parent directory, e.g. `DACN/`):
+
+```text
+DACN/
+├── vet-microservices/          # this repo (Spring services + docker-compose)
+├── vet-microservices-config/   # Spring Cloud Config — see §3.1
+├── vet-ai/                     # Vet-AI — see §3.2
+├── vet-infra/                  # (recommended) .env, Ansible/Grafana dashboards — compose uses ../vet-infra/.env
+└── vet-ml/                     # (optional) baseline CSV mounted by compose
+```
+
+`docker-compose.yml` assumes relative paths `../vet-ai`, `../vet-infra`, and `../vet-ml` as above. If you move folders, update `context`, `env_file`, and `volumes` in Compose accordingly.
+
+---
+
+## 6. Build
+
+Run from the **reactor root** `vet-microservices`, not a single module only — otherwise some images may be stale.
+
+### 6.1 Docker
 
 ```bash
 ./mvnw clean install -PbuildDocker
 ```
 
-This requires `Docker` or `Docker desktop` to be installed and running.
-
-Alternatively you can also build all the images on `Podman`, which requires Podman or Podman Desktop to be installed and running.
+### 6.2 Podman
 
 ```bash
 ./mvnw clean install -PbuildDocker -Dcontainer.executable=podman
 ```
 
-By default, the Docker OCI image is build for an `linux/amd64` platform.
-For other architectures, you could change it by using the `-Dcontainer.platform` maven command line argument.
-For instance, if you target container images for an Apple M2, you could use the command line with the `linux/arm64` architecture:
+### 6.3 Image platform (Apple Silicon, etc.)
+
+Default is `linux/amd64`. Example for ARM:
 
 ```bash
-./mvnw clean install -PbuildDocker -Dcontainer.platform="linux/arm64"
+./mvnw clean install -PbuildDocker -Dcontainer.executable=podman -Dcontainer.platform="linux/arm64"
 ```
 
-### Image names, `docker-compose`, and local builds
+### 6.4 Image names and prefix
 
-The parent `pom.xml` sets `docker.image.prefix` to `springcommunity` (override with `-Ddocker.image.prefix=...` if needed). The `buildDocker` profile tags images as `${docker.image.prefix}/${project.artifactId}` (default tag `latest`), e.g. `springcommunity/spring-petclinic-api-gateway`. `docker-compose.yml` references those same names **without** a `build:` section for the Spring services: after a local `install -PbuildDocker`, Podman/Docker creates or overwrites those tags on your machine. Running `docker compose up -d` **without** `pull` uses the **local** image—i.e. your freshly built sources—not necessarily what is on Docker Hub, unless you explicitly pull or remove the local image.
+`pom.xml` sets `docker.image.prefix` to `springcommunity` by default. Images are tagged `springcommunity/<artifactId>:latest`. Override with `-Ddocker.image.prefix=...`.
 
-Once images are ready, you can start them with a single command:
+`docker-compose.yml` does **not** use `build:` for Spring services — after `install -PbuildDocker`, Docker/Podman creates local tags; `docker compose up` uses those images unless you `pull` a different image.
+
+---
+
+## 7. Configuration
+
+### 7.1 Important environment variables
+
+- **Spring (Compose):** services use the `deploy` profile and variables such as `CONFIG_SERVER_URL`, `JWT_SECRET`. For real JWT usage, `JWT_SECRET` should be **≥ 32 bytes** (Compose provides a dev default).
+- **Env file:** some services (`vet-ai`, `genai-service`) load `env_file: ../vet-infra/.env`. Create that file from a template in `vet-infra` (if available) or set at least the variables overridden in the `environment` blocks for `vet-ai` and `genai-service`.
+- **Config Git:** point the Config Server at [vet-microservices-config](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-microservices-config) (URL and credentials per environment). For local runs without Docker, you can use the `native` profile and `GIT_REPO` pointing at a local clone (see Spring Cloud Config docs).
+
+### 7.2 Vet-AI and MLflow (Compose)
+
+See Compose for `DATABASE_URL`, `MLFLOW_TRACKING_URI`, `ADMIN_TOKEN`, `MODEL_DIR`, `CUSTOMERS_SERVICE_BASE_URL`, etc. Details: [vet-ai](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-ai) README.
+
+---
+
+## 8. Running the system
+
+### 8.1 Without Docker (IDE / `mvn spring-boot:run`)
+
+Suggested startup order: **Config Server** → **Discovery** → other services → **API Gateway**. Zipkin, Admin, Grafana/Prometheus are optional.
+
+### 8.2 Docker Compose / Podman Compose
+
+After building images (section 6):
 
 ```bash
 docker compose up -d
+# or: podman-compose up -d
 ```
 
-(or `podman-compose up -d`).
+The first requests to Eureka/Gateway may time out briefly — check registration on Eureka (section 9).
 
-Containers startup order is coordinated with the `service_healthy` condition of the Docker Compose [depends-on](https://github.com/compose-spec/compose-spec/blob/main/spec.md#depends_on) expression 
-and the [healthcheck](https://github.com/compose-spec/compose-spec/blob/main/spec.md#healthcheck) of the service containers. 
-After starting services, it takes a while for API Gateway to be in sync with service registry,
-so don't be scared of initial Spring Cloud Gateway timeouts. You can track services availability using Eureka dashboard
-available by default at http://localhost:8761.
+### 8.3 Hybrid script (optional)
 
-The `main` branch uses an Eclipse Temurin with Java 17 as Docker base image.
+`./scripts/run_all.sh` starts infrastructure with Compose and runs Java apps with `java -jar` (logs under `target/*.log`). See `scripts/chaos/README.md` for Chaos Monkey.
 
-*NOTE: Under MacOSX or Windows, make sure that the Docker VM has enough memory to run the microservices. The default settings
-are usually not enough and make the `docker-compose up` painfully slow.*
+### 8.4 Training profile (Vet-AI)
 
+The `vet-ai-training` service uses Compose **profile** `training`:
 
-## Starting services locally with docker-compose and Java
-If you experience issues with running the system via docker-compose you can try running the `./scripts/run_all.sh` script that will start the infrastructure services via docker-compose and all the Java based applications via standard `nohup java -jar ...` command. The logs will be available under `${ROOT}/target/nameoftheapp.log`. 
-
-Each of the java based applications is started with the `chaos-monkey` profile in order to interact with Spring Boot Chaos Monkey. You can check out the [README](scripts/chaos/README.md) for more information about how to use the `./scripts/chaos/call_chaos.sh` helper script to enable assaults.
-
-## Understanding the Spring Petclinic application
-
-[See the presentation of the Spring Petclinic Framework version](http://fr.slideshare.net/AntoineRey/spring-framework-petclinic-sample-application)
-
-[A blog post introducing the Spring Petclinic Microsevices](http://javaetmoi.com/2018/10/architecture-microservices-avec-spring-cloud/) (french language)
-
-You can then access petclinic here: http://localhost:8080/
-
-## Microservices Overview
-
-This project consists of several microservices:
-- **Customers Service**: Manages customer data.
-- **Vets Service**: Handles information about veterinarians.
-- **Visits Service**: Manages pet visit records.
-- **GenAI Service**: Provides a chatbot interface to the application.
-- **API Gateway**: Routes client requests to the appropriate services.
-- **Config Server**: Centralized configuration management for all services.
-- **Discovery Server**: Eureka-based service registry.
-
-Each service has its own specific role and communicates via REST APIs.
-
-
-![Spring Petclinic Microservices screenshot](docs/application-screenshot.png)
-
-
-**Architecture diagram of the Spring Petclinic Microservices**
-
-![Spring Petclinic Microservices architecture](docs/microservices-architecture-diagram.jpg)
-
-## Integrating the Spring AI Chatbot
-
-Spring Petclinic integrates a Chatbot that allows you to interact with the application in a natural language. Here are some examples of what you could ask:
-
-1. Please list the owners that come to the clinic.
-2. Are there any vets that specialize in surgery?
-3. Is there an owner named Betty?
-4. Which owners have dogs?
-5. Add a dog for Betty. Its name is Moopsie.
-6. Create a new owner.
-
-![Screenshot of the chat dialog](docs/spring-ai.png)
-
-This `spring-petlinic-genai-service` microservice currently supports **OpenAI** (default) or **Azure's OpenAI** as the LLM provider.
-In order to start the microservice, perform the following steps:
-
-1. Decide which provider you want to use. By default, the `spring-ai-openai-spring-boot-starter` dependency is enabled. 
-   You can change it to `spring-ai-azure-openai-spring-boot-starter`in the `pom.xml`.
-2. Create an OpenAI API key or a Azure OpenAI resource in your Azure Portal.
-   Refer to the [OpenAI's quickstart](https://platform.openai.com/docs/quickstart) or [Azure's documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/) for further information on how to obtain these.
-   You only need to populate the provider you're using - either openai, or azure-openai.
-   If you don't have your own OpenAI API key, don't worry!
-   You can temporarily use the `demo` key, which OpenAI provides free of charge for demonstration purposes.
-   This `demo` key has a quota, is limited to the `gpt-4o-mini` model, and is intended solely for demonstration use.
-   With your own OpenAI account, you can test the `gpt-4o` model by modifying the `deployment-name` property of the `application.yml` file.
-3. Export your API keys and endpoint as environment variables:
-    * either OpenAI:
-    ```bash
-    export OPENAI_API_KEY="your_api_key_here"
-    ```
-    * or Azure OpenAI:
-    ```bash
-    export AZURE_OPENAI_ENDPOINT="https://your_resource.openai.azure.com"
-    export AZURE_OPENAI_KEY="your_api_key_here"
-    ```
-
-## In case you find a bug/suggested improvement for Spring Petclinic Microservices
-
-Our issue tracker is available here: https://github.com/spring-petclinic/spring-petclinic-microservices/issues
-
-## Database configuration
-
-In its default configuration, Petclinic uses an in-memory database (HSQLDB) which gets populated at startup with data.
-A similar setup is provided for MySql in case a persistent database configuration is needed.
-Dependency for Connector/J, the MySQL JDBC driver is already included in the `pom.xml` files.
-
-### Start a MySql database
-
-You may start a MySql database with docker:
-
-```
-docker run -e MYSQL_ROOT_PASSWORD=petclinic -e MYSQL_DATABASE=petclinic -p 3306:3306 mysql:8.4.5
-```
-or download and install the MySQL database (e.g., MySQL Community Server 8.4.5 LTS), which can be found here: https://dev.mysql.com/downloads/
-
-### Use the Spring 'mysql' profile
-
-To use a MySQL database, you have to start 3 microservices (`visits-service`, `customers-service` and `vets-services`)
-with the `mysql` Spring profile. Add the `--spring.profiles.active=mysql` as program argument.
-
-By default, at startup, database schema will be created and data will be populated.
-You may also manually create the PetClinic database and data by executing the `"db/mysql/{schema,data}.sql"` scripts of each 3 microservices. 
-In the `application.yml` of the [Configuration repository], set the `initialization-mode` to `never`.
-
-If you are running the microservices with Docker, you have to add the `mysql` profile into the (Dockerfile)[docker/Dockerfile]:
-```
-ENV SPRING_PROFILES_ACTIVE docker,mysql
-```
-In the `mysql section` of the `application.yml` from the [Configuration repository], you have to change 
-the host and port of your MySQL JDBC connection string. 
-
-## Custom metrics monitoring
-
-Grafana and Prometheus are included in the `docker-compose.yml` configuration, and the public facing applications
-have been instrumented with [MicroMeter](https://micrometer.io) to collect JVM and custom business metrics.
-
-A JMeter load testing script is available to stress the application and generate metrics: [petclinic_test_plan.jmx](spring-petclinic-api-gateway/src/test/jmeter/petclinic_test_plan.jmx)
-
-![Grafana metrics dashboard](docs/grafana-custom-metrics-dashboard.png)
-
-### Using Prometheus
-
-* Prometheus can be accessed from your local machine at http://localhost:9091
-
-### Using Grafana with Prometheus
-
-* An anonymous access and a Prometheus datasource are setup.
-* A `Spring Petclinic Metrics` Dashboard is available at the URL http://localhost:3030/d/69JXeR0iw/spring-petclinic-metrics.
-You will find the JSON configuration file here: [docker/grafana/dashboards/grafana-petclinic-dashboard.json]().
-* You may create your own dashboard or import the [Micrometer/SpringBoot dashboard](https://grafana.com/dashboards/4701) via the Import Dashboard menu item.
-The id for this dashboard is `4701`.
-
-### Custom metrics
-Spring Boot registers a lot number of core metrics: JVM, CPU, Tomcat, Logback... 
-The Spring Boot auto-configuration enables the instrumentation of requests handled by Spring MVC.
-All those three REST controllers `OwnerResource`, `PetResource` and `VisitResource` have been instrumented by the `@Timed` Micrometer annotation at class level.
-
-* `customers-service` application has the following custom metrics enabled:
-  * @Timed: `petclinic.owner`
-  * @Timed: `petclinic.pet`
-* `visits-service` application has the following custom metrics enabled:
-  * @Timed: `petclinic.visit`
-
-## Looking for something in particular?
-
-| Spring Cloud components         | Resources  |
-|---------------------------------|------------|
-| Configuration server            | [Config server properties](spring-petclinic-config-server/src/main/resources/application.yml) and [Configuration repository] |
-| Service Discovery               | [Eureka server](spring-petclinic-discovery-server) and [Service discovery client](spring-petclinic-vets-service/src/main/java/org/springframework/samples/petclinic/vets/VetsServiceApplication.java) |
-| API Gateway                     | [Spring Cloud Gateway starter](spring-petclinic-api-gateway/pom.xml) and [Routing configuration](/spring-petclinic-api-gateway/src/main/resources/application.yml) |
-| Docker Compose                  | [Spring Boot with Docker guide](https://spring.io/guides/gs/spring-boot-docker/) and [docker-compose file](docker-compose.yml) |
-| Circuit Breaker                 | [Resilience4j fallback method](spring-petclinic-api-gateway/src/main/java/org/springframework/samples/petclinic/api/boundary/web/ApiGatewayController.java)  |
-| Grafana / Prometheus Monitoring | [Micrometer implementation](https://micrometer.io/), [Spring Boot Actuator Production Ready Metrics] |
-
-|  Front-end module | Files |
-|-------------------|-------|
-| Node and NPM      | [The frontend-maven-plugin plugin downloads/installs Node and NPM locally then runs Bower and Gulp](spring-petclinic-ui/pom.xml)  |
-| Bower             | [JavaScript libraries are defined by the manifest file bower.json](spring-petclinic-ui/bower.json)  |
-| Gulp              | [Tasks automated by Gulp: minify CSS and JS, generate CSS from LESS, copy other static resources](spring-petclinic-ui/gulpfile.js)  |
-| Angular JS        | [app.js, controllers and templates](spring-petclinic-ui/src/scripts/)  |
-
-## Pushing to a Docker registry
-
-Docker images for `linux/amd64` and `linux/arm64` platforms have been published into DockerHub 
-in the [springcommunity](https://hub.docker.com/u/springcommunity) organization.
-You can pull an image:
 ```bash
-docker pull springcommunity/spring-petclinic-config-server
+docker compose --profile training up -d
 ```
-You may prefer to build then push images to your own Docker registry.
 
-### Choose your Docker registry
+---
 
-You need to define your target Docker registry.
-Make sure you're already logged in by running `docker login <endpoint>` or `docker login` if you're just targeting Docker hub.
+## 9. Service URLs after startup
 
-Setup the `REPOSITORY_PREFIX` env variable to target your Docker registry.
-If you're targeting Docker hub, simple provide your username, for example:
+| Service | Default URL (host) |
+|---------|---------------------|
+| **API Gateway** (AngularJS UI) | http://localhost:8080 |
+| **Discovery (Eureka)** | http://localhost:8761 |
+| **Config Server** | http://localhost:8888 |
+| **Customers Service** | http://localhost:8081 |
+| **Visits Service** | http://localhost:8082 |
+| **Vets Service** | http://localhost:8083 |
+| **GenAI Service** | http://localhost:8090 (mapped from container port 8084) |
+| **Vet-AI (FastAPI)** | http://localhost:8000 |
+| **MLflow** | http://localhost:5000 |
+| **Postgres** (Compose, MLflow) | `localhost:5432` (user/db per Compose) |
+| **Zipkin** | http://localhost:9411/zipkin/ |
+| **Spring Boot Admin** | http://localhost:9092 (Compose; local without Docker may use 9090) |
+| **Grafana** | http://localhost:3030 |
+| **Prometheus** | http://localhost:9091 |
+
+Sample Petclinic Grafana dashboard (if imported): e.g. `http://localhost:3030/d/69JXeR0iw/spring-petclinic-metrics`. Provisioning lives under `docker/grafana/`.
+
+---
+
+## 10. API and documentation
+
+- **Vet-AI:** OpenAPI is usually at `/docs` (FastAPI) — http://localhost:8000/docs when running locally.
+- **Spring services:** use Actuator and OpenAPI/Swagger if enabled in [vet-microservices-config](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-microservices-config).
+
+---
+
+## 11. Microservices overview
+
+| Module | Role |
+|--------|------|
+| `spring-petclinic-api-gateway` | UI, routing, static assets |
+| `spring-petclinic-discovery-server` | Eureka |
+| `spring-petclinic-config-server` | Config Server |
+| `spring-petclinic-customers-service` | Owners / pets |
+| `spring-petclinic-vets-service` | Veterinarians |
+| `spring-petclinic-visits-service` | Visits; AI integration per config |
+| `spring-petclinic-genai-service` | Vet-AI proxy (diagnosis, MLOps); optional LLM chat (upstream) |
+| `spring-petclinic-admin-server` | Monitoring (optional) |
+
+Standalone AI repo: [vet-ai](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-ai).
+
+---
+
+## 12. Integration
+
+### 12.1 Spring Cloud Config
+
+Applications load configuration from [vet-microservices-config](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-microservices-config). Ensure the Config Server points at the correct remote/branch and services use the correct `CONFIG_SERVER_URL` (in containers: `http://config-server:8888/`).
+
+### 12.2 Vet-AI
+
+Gateway / Visits / GenAI call Vet-AI via internal Docker URLs (e.g. `http://vet-ai:8000`). See variables such as `VETAI_DIAGNOSIS_URL` on `genai-service`. Endpoints and tokens: [vet-ai](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-ai).
+
+### 12.3 Database
+
+Default is in-memory **HSQLDB**. For **MySQL**, run MySQL (Docker or install), enable the `mysql` profile on customers/vets/visits, and adjust JDBC in the **config** repository. See also [Spring Petclinic — database configuration](https://github.com/spring-petclinic/spring-petclinic-microservices#database-configuration) (upstream).
+
+### 12.4 GenAI service — Vet-AI vs optional LLM chat
+
+Do not confuse the two layers in `spring-petclinic-genai-service`:
+
+| Concern | What you need | Notes |
+|--------|----------------|--------|
+| **Vet-AI (this project’s AI)** | `VETAI_DIAGNOSIS_URL` (e.g. `http://vet-ai:8000`), `ADMIN_TOKEN` for protected training APIs | Same as §12.2. No OpenAI or Azure account required. |
+| **Optional Spring AI chat (upstream Petclinic)** | `OPENAI_API_KEY` and/or `AZURE_OPENAI_KEY` / `AZURE_OPENAI_ENDPOINT` | Only if you use the natural-language **chat** integration from the original Petclinic GenAI sample. **You can ignore these** if you only use Vet-AI for diagnosis and training. |
+
+`application.yml` in `spring-petclinic-genai-service` still declares Spring AI chat defaults (`OPENAI_API_KEY` defaults to `demo` for upstream demos); that does not mean your deployment must use an external LLM. For Vet-AI details, see [vet-ai](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-ai).
+
+---
+
+## 13. Testing
+
 ```bash
-export REPOSITORY_PREFIX=springcommunity
+./mvnw test
 ```
 
-For other Docker registries, provide the full URL to your repository, for example:
-```bash
-export REPOSITORY_PREFIX=harbor.myregistry.com/petclinic
-```
+Sample JMeter load plan: `spring-petclinic-api-gateway/src/test/jmeter/petclinic_test_plan.jmx`.
 
-To push Docker image for the `linux/amd64` and the `linux/arm64` platform to your own registry, please use the command line:
-```bash
-mvn clean install -Dmaven.test.skip -P buildDocker -Ddocker.image.prefix=${REPOSITORY_PREFIX} -Dcontainer.build.extraarg="--push" -Dcontainer.platform="linux/amd64,linux/arm64"
-```
+---
 
-The `scripts/pushImages.sh` and `scripts/tagImages.sh` shell scripts could also be used once you build your image with the `buildDocker` maven profile.
-The `scripts/tagImages.sh` requires to declare the `VERSION` env variable.
+## 14. Troubleshooting
 
-## Compiling the CSS
+| Issue | Suggestion |
+|--------|------------|
+| Docker/Podman build fails | Run from reactor root; check `container.executable` and socket permissions |
+| Gateway timeouts at first | Wait until Eureka shows all services; retry after a short delay |
+| Config not loading | Verify Git config URL, branch, and `CONFIG_SERVER_URL` in containers |
+| `JWT_SECRET` too short | Use ≥ 32 characters in real deployments |
+| Grafana missing dashboards | Check volume `../vet-infra/...` — clone `vet-infra` or fix paths in `docker-compose.yml` |
 
-There is a `petclinic.css` in `spring-petclinic-api-gateway/src/main/resources/static/css`.
-It was generated from the `petclinic.scss` source, combined with the [Bootstrap](https://getbootstrap.com/) library.
-If you make changes to the `scss`, or upgrade Bootstrap, you will need to re-compile the CSS resources
-using the Maven profile `css` of the `spring-petclinic-api-gateway`module.
+---
+
+## 15. Contributing and license
+
+This project builds on the public **Spring Petclinic Microservices** codebase. **License: Apache License 2.0.**
+
+Upstream: [spring-petclinic/spring-petclinic-microservices](https://github.com/spring-petclinic/spring-petclinic-microservices).
+
+---
+
+## Further reading (upstream)
+
+- [Spring Petclinic Microservices](https://github.com/spring-petclinic/spring-petclinic-microservices)
+- [Microservices — Martin Fowler](https://martinfowler.com/articles/microservices.html)
+- [Spring Boot with Docker](https://spring.io/guides/gs/spring-boot-docker/)
+
+### Compiling gateway CSS
+
 ```bash
 cd spring-petclinic-api-gateway
 mvn generate-resources -P css
 ```
 
-## Interesting Spring Petclinic forks
+### Pushing images to a private registry
 
-The Spring Petclinic `main` branch in the main [spring-projects](https://github.com/spring-projects/spring-petclinic)
-GitHub org is the "canonical" implementation, currently based on Spring Boot and Thymeleaf.
-
-This [spring-petclinic-microservices](https://github.com/spring-petclinic/spring-petclinic-microservices/) project is one of the [several forks](https://spring-petclinic.github.io/docs/forks.html) 
-hosted in a special GitHub org: [spring-petclinic](https://github.com/spring-petclinic).
-If you have a special interest in a different technology stack
-that could be used to implement the Pet Clinic then please join the community there.
-
-
-## Contributing
-
-The [issue tracker](https://github.com/spring-petclinic/spring-petclinic-microservices/issues) is the preferred channel for bug reports, features requests and submitting pull requests.
-
-For pull requests, editor preferences are available in the [editor config](.editorconfig) for easy use in common text editors. Read more and download plugins at <http://editorconfig.org>.
-
-
-[Configuration repository]: https://github.com/spring-petclinic/spring-petclinic-microservices-config
-[Spring Boot Actuator Production Ready Metrics]: https://docs.spring.io/spring-boot/docs/current/reference/html/production-ready-metrics.html
-
-## Supported by
-
-[![JetBrains logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSourceSupport)
+See upstream docs: `REPOSITORY_PREFIX`, `mvn clean install -P buildDocker -Ddocker.image.prefix=...`, and scripts `scripts/pushImages.sh` / `scripts/tagImages.sh`.
