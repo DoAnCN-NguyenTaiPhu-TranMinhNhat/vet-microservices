@@ -241,7 +241,7 @@ services:
   vet-ai:
     build:
       context: ../vet-ai
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile.api
     container_name: vet-ai
     networks: [petclinic-net]
     ports:
@@ -298,7 +298,7 @@ services:
   vet-ai-training:
     build:
       context: ../vet-ai
-      dockerfile: Dockerfile.training
+      dockerfile: docker/Dockerfile.training
     container_name: vet-ai-training
     networks: [petclinic-net]
     env_file:
