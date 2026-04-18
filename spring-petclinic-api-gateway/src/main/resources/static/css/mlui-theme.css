@@ -1,0 +1,97 @@
+body {
+  background: #f6f8fb;
+}
+
+.navbar {
+  border-top: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: #1f2937;
+}
+
+.navbar .container-fluid {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.navbar .brand-text {
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+}
+
+.navbar .brand-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #d1d5db;
+  font-size: 0.72rem;
+  vertical-align: middle;
+}
+
+.navbar li > a,
+.navbar-text {
+  padding: 0.9rem 1rem;
+  text-transform: none;
+}
+
+.navbar li:hover > a {
+  background: rgba(109, 179, 63, 0.22);
+}
+
+.xd-container {
+  margin-top: 1.1rem;
+  margin-bottom: 1.2rem;
+}
+
+.xd-container > [ui-view] {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  padding: 1.2rem 1.3rem;
+}
+
+h1,
+h2 {
+  color: #111827;
+}
+
+.lead {
+  color: #4b5563;
+}
+
+.btn {
+  border-radius: 10px;
+}
+
+.form-control,
+.form-select {
+  border-radius: 10px;
+}
+
+.table {
+  margin-bottom: 0;
+}
+
+.table > thead > tr > th {
+  color: #6b7280;
+  font-weight: 600;
+  border-bottom-width: 1px;
+}
+
+.table > tbody > tr > td {
+  border-color: #eef0f4;
+}
+
+layout-footer .container {
+  margin-top: 0.2rem;
+  margin-bottom: 1rem;
+}
+
+layout-footer img {
+  opacity: 0.65;
+  max-height: 28px;
+  width: auto;
+}
