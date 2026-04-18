@@ -1,5 +1,6 @@
-<h2>Veterinarian</h2>
-<form ng-submit="$ctrl.submitVetForm()" style="max-width: 30em;">
+<h2 class="ml-page-title">Veterinarian</h2>
+<div class="ml-card" style="max-width: 40rem;">
+<form ng-submit="$ctrl.submitVetForm()">
     <div class="form-group">
         <label>First name</label>
         <input class="form-control" ng-model="$ctrl.vet.firstName" name="firstName" required/>
@@ -22,7 +23,8 @@
 
     <div class="form-group">
         <button class="btn btn-primary" type="submit">Submit</button>
-        <a class="btn btn-default" ui-sref="vets">Cancel</a>
+        <a class="btn btn-outline-secondary" ui-sref="vets">Cancel</a>
     </div>
 </form>
+</div>
 

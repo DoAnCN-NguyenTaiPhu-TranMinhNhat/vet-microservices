@@ -1,10 +1,15 @@
-<h2>Veterinarians</h2>
-<p ng-if="!$ctrl.restrictVetManagement">
-    <a class="btn btn-primary" ui-sref="vetNew">
-        <span class="fa fa-plus"></span>
-        Add veterinarian
-    </a>
-</p>
+<h2 class="ml-page-title">Veterinarians</h2>
+<div class="ml-card">
+<div class="ml-toolbar">
+    <div class="ml-muted small">Manage veterinarians and specialties.</div>
+    <p ng-if="!$ctrl.restrictVetManagement" style="margin: 0;">
+        <a class="btn btn-primary btn-sm" ui-sref="vetNew">
+            <span class="fa fa-plus"></span>
+            Add veterinarian
+        </a>
+    </p>
+</div>
+<div class="ml-subtle-table table-responsive">
 <table class="table table-striped">
     <thead>
     <tr>
@@ -18,10 +23,13 @@
         <td>{{vet.firstName}} {{vet.lastName}}</td>
         <td><span ng-repeat="specialty in vet.specialties">{{specialty.name + ' '}}</span></td>
         <td>
-            <a ui-sref="vetEdit({vetId: vet.id})">Edit</a>
-            <span ng-if="!$ctrl.restrictVetManagement"> | </span>
-            <button ng-if="!$ctrl.restrictVetManagement" type="button" class="btn btn-danger btn-sm" ng-click="$ctrl.deleteVet($event, vet.id)">Delete</button>
+            <div class="ml-actions">
+                <a class="btn btn-outline-primary btn-sm" ui-sref="vetEdit({vetId: vet.id})">Edit</a>
+                <button ng-if="!$ctrl.restrictVetManagement" type="button" class="btn btn-danger btn-sm" ng-click="$ctrl.deleteVet($event, vet.id)">Delete</button>
+            </div>
         </td>
 
     </tr>
 </table>
+</div>
+</div>

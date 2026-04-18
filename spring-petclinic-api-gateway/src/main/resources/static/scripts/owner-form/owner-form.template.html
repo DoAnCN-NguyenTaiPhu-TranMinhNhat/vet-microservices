@@ -1,5 +1,7 @@
-<h2>Owner</h2>
-<form ng-submit="$ctrl.submitOwnerForm()" style="max-width: 25em;">
+<h2 class="ml-page-title">Owner</h2>
+<div class="ml-card" style="max-width: 34rem;">
+<form ng-submit="$ctrl.submitOwnerForm()">
+    <div class="ml-form-grid">
     <div class="form-group">
         <label>First name</label>
         <input class="form-control" ng-model="$ctrl.owner.firstName" name="firstName" required/>
@@ -48,5 +50,7 @@
     <div class="form-group">
         <button class="btn btn-primary" type="submit">Submit</button>
     </div>
+    </div>
 </form>
+</div>
 

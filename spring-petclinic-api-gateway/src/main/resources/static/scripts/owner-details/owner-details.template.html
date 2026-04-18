@@ -2,40 +2,30 @@
 <div ng-if="$ctrl.notFound" class="alert alert-warning">Owner not found. Redirecting...</div>
 
 <div ng-if="!$ctrl.loading && !$ctrl.notFound">
-<h2>Owner Information</h2>
+<h2 class="ml-page-title">Owner Information</h2>
 
-<table class="table table-striped">
-    <tr>
-        <th class="col-sm-3">Name</th>
-        <td><b>{{$ctrl.owner.firstName}} {{$ctrl.owner.lastName}}</b></td>
-    </tr>
-    <tr>
-        <th>Address</th>
-        <td>{{$ctrl.owner.address}}</td>
-    </tr>
-    <tr>
-        <th>City</th>
-        <td>{{$ctrl.owner.city}}</td>
-    </tr>
-    <tr>
-        <th>Telephone</th>
-        <td>{{$ctrl.owner.telephone}}</td>
-    </tr>
-    <tr>
-        <td>
-            <div class="btn-group align-middle" role="group">
-                <a class="btn btn-outline-primary btn-sm" ui-sref="ownerEdit({ownerId: $ctrl.owner.id})" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Edit Owner</a>
-                <button class="btn btn-outline-danger btn-sm" type="button" ng-click="$ctrl.deleteOwner($event)" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Delete Owner</button>
-            </div>
-        </td>
-        <td>
-            <a ui-sref="petNew({ownerId: $ctrl.owner.id})" class="btn btn-primary btn-sm" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Add New Pet</a>
-        </td>
-    </tr>
-</table>
+<div class="ml-card">
+    <div class="ml-kv mb-3">
+        <div class="key">Name</div>
+        <div class="val"><b>{{$ctrl.owner.firstName}} {{$ctrl.owner.lastName}}</b></div>
+        <div class="key">Address</div>
+        <div class="val">{{$ctrl.owner.address}}</div>
+        <div class="key">City</div>
+        <div class="val">{{$ctrl.owner.city}}</div>
+        <div class="key">Telephone</div>
+        <div class="val">{{$ctrl.owner.telephone}}</div>
+    </div>
+    <div class="ml-actions">
+        <a class="btn btn-outline-primary btn-sm" ui-sref="ownerEdit({ownerId: $ctrl.owner.id})" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Edit Owner</a>
+        <button class="btn btn-outline-danger btn-sm" type="button" ng-click="$ctrl.deleteOwner($event)" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Delete Owner</button>
+        <a ui-sref="petNew({ownerId: $ctrl.owner.id})" class="btn btn-primary btn-sm" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Add New Pet</a>
+    </div>
+</div>
 
-<h2>Pets and Visits</h2>
+<h2 class="ml-page-title">Pets and Visits</h2>
 
+<div class="ml-card">
+<div class="ml-subtle-table table-responsive">
 <table class="table table-striped align-middle">
     <thead>
     <tr>
@@ -93,6 +83,8 @@
     </tr>
     </tbody>
 </table>
+</div>
+</div>
 
 </div>
 

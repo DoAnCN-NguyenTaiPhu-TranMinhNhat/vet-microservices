@@ -1,4 +1,4 @@
-<h2>Visits</h2>
+<h2 class="ml-page-title">Visits</h2>
 
 <!-- Pet Information Section -->
 <div ng-if="$ctrl.petLoading" class="alert alert-warning">
@@ -31,6 +31,7 @@
 
 <!-- Only show form if no error -->
 <div ng-if="!$ctrl.petLoadError">
+<div class="ml-card">
 <form ng-submit="$ctrl.submit()">
 
     <div class="form-group">
@@ -166,9 +167,12 @@
     </div>
 
 </form>
+</div>
 </div> <!-- End form wrapper -->
 
-<h3>Previous Visits</h3>
+<h3 class="ml-page-title" style="font-size:1.2rem;">Previous Visits</h3>
+<div class="ml-card">
+<div class="ml-subtle-table table-responsive">
 <table class="table table-striped">
     <thead>
         <tr>
@@ -206,3 +210,5 @@
         </tr>
     </tbody>
 </table>
+</div>
+</div>
