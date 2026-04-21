@@ -1,6 +1,6 @@
 <div class="clinic-login-screen">
     <div class="clinic-login-screen__inner">
-        <div class="clinic-login-screen__card clinic-login-screen__card--wide card">
+        <div class="clinic-login-screen__card clinic-login-screen__card--wide card shadow-soft">
             <div class="card-body p-4 p-md-5">
                 <div class="text-center mb-4">
                     <img src="/images/favicon.png" alt="" width="56" height="56" class="mb-2">
@@ -45,7 +45,7 @@
                         <input id="reg-vet-id" type="number" class="form-control" ng-model="vm.veterinarianId" placeholder="Leave empty if not linked yet">
                     </div>
                     <div class="d-grid gap-2 d-sm-flex justify-content-sm-between align-items-center">
-                        <button type="submit" class="btn btn-success btn-lg px-4" ng-disabled="regForm.$invalid">Register</button>
+                        <button type="submit" class="btn btn-primary" ng-disabled="regForm.$invalid">Register</button>
                         <div class="small">
                             <a ui-sref="login" class="link-success fw-medium">Already have an account — Sign in</a>
                             <span class="text-muted mx-2">|</span>

@@ -2,91 +2,181 @@
 <div ng-if="$ctrl.notFound" class="alert alert-warning">Owner not found. Redirecting...</div>
 
 <div ng-if="!$ctrl.loading && !$ctrl.notFound">
-<h2 class="ml-page-title">Owner Information</h2>
 
-<div class="ml-card">
-    <div class="ml-kv mb-3">
-        <div class="key">Name</div>
-        <div class="val"><b>{{$ctrl.owner.firstName}} {{$ctrl.owner.lastName}}</b></div>
-        <div class="key">Address</div>
-        <div class="val">{{$ctrl.owner.address}}</div>
-        <div class="key">City</div>
-        <div class="val">{{$ctrl.owner.city}}</div>
-        <div class="key">Telephone</div>
-        <div class="val">{{$ctrl.owner.telephone}}</div>
+<!-- OWNER -->
+<h2 class="section-title mb-2">Owner</h2>
+
+<div class="card shadow-soft p-3 mb-4">
+
+  <div class="row g-3">
+
+    <div class="col-md-6">
+      <div class="text-muted small">Name</div>
+      <div class="value-lg">
+        {{$ctrl.owner.firstName}} {{$ctrl.owner.lastName}}
+      </div>
     </div>
-    <div class="ml-actions">
-        <a class="btn btn-outline-primary btn-sm" ui-sref="ownerEdit({ownerId: $ctrl.owner.id})" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Edit Owner</a>
-        <button class="btn btn-outline-danger btn-sm" type="button" ng-click="$ctrl.deleteOwner($event)" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Delete Owner</button>
-        <a ui-sref="petNew({ownerId: $ctrl.owner.id})" class="btn btn-primary btn-sm" ng-disabled="!$ctrl.owner || !$ctrl.owner.id">Add New Pet</a>
+
+    <div class="col-md-6">
+      <div class="text-muted small">Telephone</div>
+      <div class="fw-medium">{{$ctrl.owner.telephone}}</div>
     </div>
-</div>
 
-<h2 class="ml-page-title">Pets and Visits</h2>
+    <div class="col-md-6">
+      <div class="text-muted small">Address</div>
+      <div>{{$ctrl.owner.address}}</div>
+    </div>
 
-<div class="ml-card">
-<div class="ml-subtle-table table-responsive">
-<table class="table table-striped align-middle">
-    <thead>
-    <tr>
-        <th>Pet</th>
-        <th>Birth date</th>
-        <th>Type</th>
-        <th>Gender</th>
-        <th>Vaccination</th>
-        <th>Notes</th>
-        <th style="width: 18em;">Actions</th>
-    </tr>
-    </thead>
-    <tbody>
-    <tr ng-repeat-start="pet in $ctrl.owner.pets track by pet.id">
-        <td><b>{{pet.name}}</b> <span class="text-muted">(ID: {{pet.id}})</span></td>
-        <td>{{pet.birthDate | date:'yyyy MMM dd'}}</td>
-        <td>{{pet.type.name}}</td>
-        <td>{{pet.gender || '-'}}</td>
-        <td>{{pet.vaccinationStatus || '-'}}</td>
-        <td>{{pet.medicalNotes || '-'}}</td>
-        <td>
-            <div class="btn-group" role="group">
-                <a class="btn btn-outline-primary btn-sm" ui-sref="petEdit({ownerId: $ctrl.owner.id, petId: pet.id})">Edit</a>
-                <a class="btn btn-outline-primary btn-sm" ui-sref="visits({ownerId: $ctrl.owner.id, petId: pet.id})">Add visit</a>
-                <button type="button"
-                        class="btn btn-danger btn-sm"
-                        ng-click="$ctrl.deletePet($event, pet.id)">Delete</button>
-            </div>
-        </td>
-    </tr>
-    <tr ng-repeat-end>
-        <td colspan="7">
-            <table class="table table-sm mb-0" ng-if="pet.visits && pet.visits.length">
-                <thead>
-                <tr>
-                    <th>Visit Date</th>
-                    <th>Description</th>
-                    <th>Temperature</th>
-                    <th>Weight</th>
-                    <th>Diagnosis</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr ng-repeat="visit in pet.visits track by visit.id">
-                    <td>{{visit.date | date:'yyyy MMM dd'}}</td>
-                    <td>{{visit.description}}</td>
-                    <td>{{visit.temperature || '-'}}</td>
-                    <td><span ng-if="visit.weightKg">{{visit.weightKg}} kg</span><span ng-if="!visit.weightKg">-</span></td>
-                    <td>{{visit.targetDiagnosis || '-'}}</td>
-                </tr>
-                </tbody>
-            </table>
-            <span class="text-muted" ng-if="!pet.visits || !pet.visits.length">No visits yet.</span>
-        </td>
-    </tr>
-    </tbody>
-</table>
-</div>
-</div>
+    <div class="col-md-6">
+      <div class="text-muted small">City</div>
+      <div>{{$ctrl.owner.city}}</div>
+    </div>
+
+  </div>
+
+  <!-- OWNER ACTIONS -->
+  <div class="actions-row mt-4">
+    <a class="btn btn-outline-primary"
+       ui-sref="ownerEdit({ownerId: $ctrl.owner.id})">
+      Edit
+    </a>
+
+    <button class="btn btn-outline-danger"
+            ng-click="$ctrl.deleteOwner($event)">
+      Delete
+    </button>
+  </div>
 
 </div>
 
+<!-- PETS HEADER (FIXED UX) -->
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h2 class="section-title mb-0">Pets</h2>
 
+  <a class="btn btn-primary"
+     ui-sref="petNew({ownerId: $ctrl.owner.id})">
+    + Add Pet
+  </a>
+</div>
 
+<div class="card shadow-soft p-3">
+
+  <div ng-repeat="pet in $ctrl.owner.pets track by pet.id" class="mb-4">
+
+    <!-- PET HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <span class="fw-semibold fs-6">{{pet.name}}</span>
+        <span class="text-muted small">(ID: {{pet.id}})</span>
+      </div>
+
+      <div class="actions-row">
+        <a class="btn btn-outline-primary"
+           ui-sref="petEdit({ownerId: $ctrl.owner.id, petId: pet.id})">
+          Edit
+        </a>
+
+        <a class="btn btn-outline-primary"
+           ui-sref="visits({ownerId: $ctrl.owner.id, petId: pet.id})">
+          Visit
+        </a>
+
+        <button class="btn btn-outline-danger"
+                ng-click="$ctrl.deletePet($event, pet.id)">
+          Delete
+        </button>
+      </div>
+    </div>
+
+    <!-- PET INFO -->
+    <div class="row g-2 mb-3">
+
+      <div class="col-md-3">
+        <div class="mini-card">
+          <div class="section-title">Type</div>
+          <div class="fw-medium">{{pet.type.name}}</div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="mini-card">
+          <div class="section-title">Birth</div>
+          <div>{{pet.birthDate | date:'yyyy MMM dd'}}</div>
+        </div>
+      </div>
+
+      <div class="col-md-2">
+        <div class="mini-card">
+          <div class="section-title">Gender</div>
+          <div>{{pet.gender || '-'}}</div>
+        </div>
+      </div>
+
+      <div class="col-md-2">
+        <div class="mini-card">
+          <div class="section-title">Vaccine</div>
+          <div>{{pet.vaccinationStatus || '-'}}</div>
+        </div>
+      </div>
+
+      <div class="col-md-2">
+        <div class="mini-card">
+          <div class="section-title">Notes</div>
+          <div class="small text-truncate">{{pet.medicalNotes || '-'}}</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- VISITS -->
+    <div>
+
+      <div class="section-title mb-2">Visits</div>
+
+      <div ng-if="pet.visits && pet.visits.length" class="table-responsive">
+
+        <table class="table table-sm table-borderless align-middle">
+
+          <thead class="text-muted small">
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Temp</th>
+              <th>Weight</th>
+              <th>Diagnosis</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr ng-repeat="visit in pet.visits track by visit.id">
+              <td>{{visit.date | date:'yyyy MMM dd'}}</td>
+              <td class="text-truncate" style="max-width: 200px;">
+                {{visit.description}}
+              </td>
+              <td>{{visit.temperature || '-'}}</td>
+              <td>
+                <span ng-if="visit.weightKg">{{visit.weightKg}} kg</span>
+                <span ng-if="!visit.weightKg">-</span>
+              </td>
+              <td>{{visit.targetDiagnosis || '-'}}</td>
+            </tr>
+          </tbody>
+
+        </table>
+
+      </div>
+
+      <div ng-if="!pet.visits || !pet.visits.length"
+           class="text-muted small fst-italic">
+        No visits yet.
+      </div>
+
+    </div>
+
+    <hr class="my-4" ng-if="!$last" />
+
+  </div>
+
+</div>
+
+</div>
