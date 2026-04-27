@@ -183,6 +183,16 @@ public class DiagnosisController {
         return trainingClient.getTrainingStatus(trainingId);
     }
 
+    @PostMapping("/training/mlair/trigger")
+    public Mono<Map<String, Object>> triggerMlairTraining(@RequestBody MlairTrainingRequest request) {
+        return trainingClient.triggerMlairTrainingRun(request.getPipelineId(), request.getIdempotencyKey(), request.getClinicId());
+    }
+
+    @GetMapping("/training/mlair/runs/{runId}")
+    public Mono<Map<String, Object>> getMlairRunStatus(@PathVariable String runId) {
+        return trainingClient.getMlairRunStatus(runId);
+    }
+
     @PostMapping("/training/manual-check")
     public Mono<Map<String, Object>> manualTrainingCheck() {
         logger.info("Manual training check triggered");
@@ -251,6 +261,21 @@ public class DiagnosisController {
         
         public boolean isForce() { return force; }
         public void setForce(boolean force) { this.force = force; }
+    }
+
+    public static class MlairTrainingRequest {
+        private String pipelineId;
+        private String idempotencyKey;
+        private UUID clinicId;
+
+        public String getPipelineId() { return pipelineId; }
+        public void setPipelineId(String pipelineId) { this.pipelineId = pipelineId; }
+
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+
+        public UUID getClinicId() { return clinicId; }
+        public void setClinicId(UUID clinicId) { this.clinicId = clinicId; }
     }
 
     // Exception handlers to return consistent JSON error format

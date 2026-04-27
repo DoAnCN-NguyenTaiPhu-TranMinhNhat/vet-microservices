@@ -37,6 +37,9 @@ vetai:
     url: ${VETAI_DIAGNOSIS_URL:http://localhost:8000}
   admin:
     token: ${ADMIN_TOKEN:}
+  mlair:
+    auto-trigger-enabled: ${MLAIR_AUTO_TRIGGER_ENABLED:false}
+    pipeline-id: ${MLAIR_PIPELINE_ID:vet_ai_training_pipeline}
 
 
 logging:

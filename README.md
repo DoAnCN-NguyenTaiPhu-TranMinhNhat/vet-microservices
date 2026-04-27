@@ -250,6 +250,13 @@ Applications load configuration from [vet-microservices-config](https://github.c
 
 Gateway / Visits / GenAI call Vet-AI via internal Docker URLs (e.g. `http://vet-ai:8000`). See variables such as `VETAI_DIAGNOSIS_URL` on `genai-service`. Endpoints and tokens: [vet-ai](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-ai).
 
+`genai-service` also exposes MLAir bridge endpoints through Vet-AI:
+
+- `POST /training/mlair/trigger`
+- `GET /training/mlair/runs/{runId}`
+
+These routes call Vet-AI (`/mlair/*`) which then calls MLAir API using Vet-AI environment settings.
+
 ### 12.3 Database
 
 Default is in-memory **HSQLDB**. For **MySQL**, run MySQL (Docker or install), enable the `mysql` profile on customers/vets/visits, and adjust JDBC in the **config** repository. See also [Spring Petclinic — database configuration](https://github.com/spring-petclinic/spring-petclinic-microservices#database-configuration) (upstream).

@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 
 /**
  * Service for integrating with Continuous Training API
@@ -30,13 +31,19 @@ public class ContinuousTrainingClient {
     private final WebClient webClient;
     private final String aiServiceUrl;
     private final String adminToken;
+    private final boolean mlairAutoTriggerEnabled;
+    private final String mlairDefaultPipelineId;
 
     public ContinuousTrainingClient(
         @Value("${vetai.diagnosis.url:http://localhost:8000}") String aiServiceUrl,
-        @Value("${vetai.admin.token:}") String adminToken
+        @Value("${vetai.admin.token:}") String adminToken,
+        @Value("${vetai.mlair.auto-trigger-enabled:false}") boolean mlairAutoTriggerEnabled,
+        @Value("${vetai.mlair.pipeline-id:vet_ai_training_pipeline}") String mlairDefaultPipelineId
     ) {
         this.aiServiceUrl = aiServiceUrl;
         this.adminToken = adminToken;
+        this.mlairAutoTriggerEnabled = mlairAutoTriggerEnabled;
+        this.mlairDefaultPipelineId = mlairDefaultPipelineId;
         this.webClient = WebClient.builder().baseUrl(aiServiceUrl).build();
     }
 
@@ -269,6 +276,49 @@ public class ContinuousTrainingClient {
     }
 
     /**
+     * Trigger MLAir training run via vet-ai bridge endpoint.
+     */
+    @SuppressWarnings("unchecked")
+    public Mono<Map<String, Object>> triggerMlairTrainingRun(String pipelineId, String idempotencyKey, UUID clinicId) {
+        Map<String, Object> request = new HashMap<>();
+        request.put("pipeline_id", pipelineId);
+        request.put("idempotency_key", idempotencyKey);
+        if (clinicId != null) {
+            request.put("clinic_id", clinicId.toString());
+        }
+
+        return webClient
+                .post()
+                .uri("/mlair/runs/training")
+                .headers(h -> {
+                    if (adminToken != null && !adminToken.isBlank()) {
+                        h.setBearerAuth(adminToken);
+                    }
+                })
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .map(response -> (Map<String, Object>) response)
+                .doOnSuccess(response -> logger.info("MLAir run triggered successfully: {}", response))
+                .doOnError(e -> logger.error("Failed to trigger MLAir run: {}", e.getMessage()));
+    }
+
+    /**
+     * Read MLAir run status via vet-ai bridge endpoint.
+     */
+    @SuppressWarnings("unchecked")
+    public Mono<Map<String, Object>> getMlairRunStatus(String runId) {
+        return webClient
+                .get()
+                .uri("/mlair/runs/{runId}", runId)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .map(response -> (Map<String, Object>) response)
+                .doOnSuccess(response -> logger.info("MLAir run status retrieved: {}", response))
+                .doOnError(e -> logger.error("Failed to get MLAir run status: {}", e.getMessage()));
+    }
+
+    /**
      * Complete diagnosis workflow with training integration
      */
     public Mono<AiDiagnosisResponse> diagnoseWithTraining(AiDiagnosisRequest request, 
@@ -359,11 +409,31 @@ public class ContinuousTrainingClient {
                                             "Threshold reached: " + eligibility.get("eligible_feedback_count"),
                                             false,
                                             effectiveClinic)
-                                            .map(trigger -> {
+                                            .flatMap(trigger -> {
                                                 Map<String, Object> combined = new HashMap<>(trigger);
                                                 combined.put("feedback_saved", feedbackResp);
                                                 combined.put("training_scope_used", useGlobal ? "global" : "clinic");
-                                                return combined;
+                                                if (!mlairAutoTriggerEnabled) {
+                                                    combined.put("mlair_auto_trigger", "disabled");
+                                                    return Mono.just(combined);
+                                                }
+
+                                                String idempotencyKey = "vet-ai-auto-"
+                                                        + predictionId
+                                                        + "-"
+                                                        + Instant.now().getEpochSecond();
+                                                return triggerMlairTrainingRun(mlairDefaultPipelineId, idempotencyKey, effectiveClinic)
+                                                        .map(mlairResp -> {
+                                                            combined.put("mlair_auto_trigger", "triggered");
+                                                            combined.put("mlair", mlairResp);
+                                                            return combined;
+                                                        })
+                                                        .onErrorResume(ex -> {
+                                                            logger.error("MLAir auto-trigger failed: {}", ex.getMessage());
+                                                            combined.put("mlair_auto_trigger", "failed");
+                                                            combined.put("mlair_error", ex.getMessage());
+                                                            return Mono.just(combined);
+                                                        });
                                             });
                                 }
                                 logger.info(

@@ -122,7 +122,7 @@ services:
     container_name: api-gateway
     networks: [petclinic-net]
     ports:
-      - "8080:8080"
+      - "8088:8080"
     environment:
       <<: *spring_docker_env
     deploy:
@@ -238,17 +238,142 @@ services:
   ## Vet AI
   ## ========================
 
+  mlair-redis:
+    image: redis:7-alpine
+    container_name: mlair-redis
+    networks: [petclinic-net]
+    restart: unless-stopped
+
+  mlair-postgres:
+    image: postgres:16
+    container_name: mlair-postgres
+    networks: [petclinic-net]
+    environment:
+      POSTGRES_USER: ${ML_AIR_POSTGRES_USER:-mlair}
+      POSTGRES_PASSWORD: ${ML_AIR_POSTGRES_PASSWORD:-mlair}
+      POSTGRES_DB: ${ML_AIR_POSTGRES_DB:-mlair}
+    volumes:
+      - mlair_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ML_AIR_POSTGRES_USER:-mlair}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mlair-api:
+    image: ghcr.io/phu142857/ml-air-api:${MLAIR_IMAGE_TAG:-latest}
+    container_name: mlair-api
+    networks: [petclinic-net]
+    ports:
+      - "${ML_AIR_API_PORT:-8080}:8080"
+    environment:
+      ML_AIR_REDIS_URL: ${ML_AIR_REDIS_URL:-redis://mlair-redis:6379/0}
+      ML_AIR_DATABASE_URL: ${ML_AIR_DATABASE_URL:-postgresql://mlair:mlair@mlair-postgres:5432/mlair}
+      ML_AIR_JWT_HS256_SECRET: ${ML_AIR_JWT_HS256_SECRET:-mlair-dev-jwt-secret-32bytes-minimum-key}
+      ML_AIR_TRACKING_TOKEN: ${ML_AIR_TRACKING_TOKEN:-maintainer-token}
+      ML_AIR_MANIFEST_SIGNING_KEY: ${ML_AIR_MANIFEST_SIGNING_KEY:-mlair-dev-manifest-signing-key}
+      ML_AIR_MANIFEST_ACTIVE_KEY_ID: ${ML_AIR_MANIFEST_ACTIVE_KEY_ID:-v1}
+      ML_AIR_MANIFEST_SIGNING_KEYS_JSON: ${ML_AIR_MANIFEST_SIGNING_KEYS_JSON:-{"v1":"mlair-dev-manifest-signing-key"}}
+      ML_AIR_MANIFEST_KEY_PROVIDER: ${ML_AIR_MANIFEST_KEY_PROVIDER:-env}
+      ML_AIR_MANIFEST_MANAGED_KEYS_FILE: ${ML_AIR_MANIFEST_MANAGED_KEYS_FILE:-}
+      ML_AIR_MANIFEST_STRICT_KEY_LIFECYCLE: ${ML_AIR_MANIFEST_STRICT_KEY_LIFECYCLE:-0}
+      ML_AIR_MANIFEST_ALLOWED_KEY_IDS: ${ML_AIR_MANIFEST_ALLOWED_KEY_IDS:-}
+      ML_AIR_MANIFEST_SIGNING_ALGORITHM: ${ML_AIR_MANIFEST_SIGNING_ALGORITHM:-hmac-sha256}
+      ML_AIR_MANIFEST_ED25519_PRIVATE_KEY: ${ML_AIR_MANIFEST_ED25519_PRIVATE_KEY:-}
+      ML_AIR_MANIFEST_ED25519_PRIVATE_KEYS_JSON: ${ML_AIR_MANIFEST_ED25519_PRIVATE_KEYS_JSON:-}
+      ML_AIR_MANIFEST_ED25519_PUBLIC_KEY: ${ML_AIR_MANIFEST_ED25519_PUBLIC_KEY:-}
+      ML_AIR_MANIFEST_ED25519_PUBLIC_KEYS_JSON: ${ML_AIR_MANIFEST_ED25519_PUBLIC_KEYS_JSON:-}
+    depends_on:
+      mlair-redis:
+        condition: service_started
+      mlair-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mlair-scheduler:
+    image: ghcr.io/phu142857/ml-air-scheduler:${MLAIR_IMAGE_TAG:-latest}
+    container_name: mlair-scheduler
+    networks: [petclinic-net]
+    environment:
+      ML_AIR_REDIS_URL: ${ML_AIR_REDIS_URL:-redis://mlair-redis:6379/0}
+      ML_AIR_DATABASE_URL: ${ML_AIR_DATABASE_URL:-postgresql://mlair:mlair@mlair-postgres:5432/mlair}
+      ML_AIR_REPLAY_REQUIRE_ARTIFACT_EVIDENCE: ${ML_AIR_REPLAY_REQUIRE_ARTIFACT_EVIDENCE:-1}
+      ML_AIR_REPLAY_REQUIRE_CHECKSUM: ${ML_AIR_REPLAY_REQUIRE_CHECKSUM:-0}
+      ML_AIR_REPLAY_REQUIRE_SIGNED_MANIFEST: ${ML_AIR_REPLAY_REQUIRE_SIGNED_MANIFEST:-0}
+      ML_AIR_MANIFEST_SIGNING_KEY: ${ML_AIR_MANIFEST_SIGNING_KEY:-mlair-dev-manifest-signing-key}
+      ML_AIR_MANIFEST_ACTIVE_KEY_ID: ${ML_AIR_MANIFEST_ACTIVE_KEY_ID:-v1}
+      ML_AIR_MANIFEST_SIGNING_KEYS_JSON: ${ML_AIR_MANIFEST_SIGNING_KEYS_JSON:-{"v1":"mlair-dev-manifest-signing-key"}}
+      ML_AIR_MANIFEST_KEY_PROVIDER: ${ML_AIR_MANIFEST_KEY_PROVIDER:-env}
+      ML_AIR_MANIFEST_MANAGED_KEYS_FILE: ${ML_AIR_MANIFEST_MANAGED_KEYS_FILE:-}
+      ML_AIR_MANIFEST_STRICT_KEY_LIFECYCLE: ${ML_AIR_MANIFEST_STRICT_KEY_LIFECYCLE:-0}
+      ML_AIR_MANIFEST_ALLOWED_KEY_IDS: ${ML_AIR_MANIFEST_ALLOWED_KEY_IDS:-}
+      ML_AIR_MANIFEST_SIGNING_ALGORITHM: ${ML_AIR_MANIFEST_SIGNING_ALGORITHM:-hmac-sha256}
+      ML_AIR_MANIFEST_ED25519_PUBLIC_KEY: ${ML_AIR_MANIFEST_ED25519_PUBLIC_KEY:-}
+      ML_AIR_MANIFEST_ED25519_PUBLIC_KEYS_JSON: ${ML_AIR_MANIFEST_ED25519_PUBLIC_KEYS_JSON:-}
+    depends_on:
+      mlair-redis:
+        condition: service_started
+      mlair-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mlair-executor:
+    image: ghcr.io/phu142857/ml-air-executor:${MLAIR_IMAGE_TAG:-latest}
+    container_name: mlair-executor
+    networks: [petclinic-net]
+    environment:
+      ML_AIR_REDIS_URL: ${ML_AIR_REDIS_URL:-redis://mlair-redis:6379/0}
+      ML_AIR_DATABASE_URL: ${ML_AIR_DATABASE_URL:-postgresql://mlair:mlair@mlair-postgres:5432/mlair}
+      ML_AIR_API_BASE_URL: http://mlair-api:8080
+      ML_AIR_TRACKING_TOKEN: ${ML_AIR_TRACKING_TOKEN:-maintainer-token}
+      ML_AIR_MANIFEST_SIGNING_KEY: ${ML_AIR_MANIFEST_SIGNING_KEY:-mlair-dev-manifest-signing-key}
+      ML_AIR_MANIFEST_ACTIVE_KEY_ID: ${ML_AIR_MANIFEST_ACTIVE_KEY_ID:-v1}
+      ML_AIR_MANIFEST_SIGNING_KEYS_JSON: ${ML_AIR_MANIFEST_SIGNING_KEYS_JSON:-{"v1":"mlair-dev-manifest-signing-key"}}
+      ML_AIR_MANIFEST_KEY_PROVIDER: ${ML_AIR_MANIFEST_KEY_PROVIDER:-env}
+      ML_AIR_MANIFEST_MANAGED_KEYS_FILE: ${ML_AIR_MANIFEST_MANAGED_KEYS_FILE:-}
+      ML_AIR_MANIFEST_STRICT_KEY_LIFECYCLE: ${ML_AIR_MANIFEST_STRICT_KEY_LIFECYCLE:-0}
+      ML_AIR_MANIFEST_ALLOWED_KEY_IDS: ${ML_AIR_MANIFEST_ALLOWED_KEY_IDS:-}
+      ML_AIR_MANIFEST_SIGNING_ALGORITHM: ${ML_AIR_MANIFEST_SIGNING_ALGORITHM:-hmac-sha256}
+      ML_AIR_MANIFEST_ED25519_PRIVATE_KEY: ${ML_AIR_MANIFEST_ED25519_PRIVATE_KEY:-}
+      ML_AIR_MANIFEST_ED25519_PRIVATE_KEYS_JSON: ${ML_AIR_MANIFEST_ED25519_PRIVATE_KEYS_JSON:-}
+    depends_on:
+      mlair-api:
+        condition: service_started
+      mlair-redis:
+        condition: service_started
+      mlair-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mlair-frontend:
+    image: ghcr.io/phu142857/ml-air-frontend:${MLAIR_IMAGE_TAG:-latest}
+    container_name: mlair-frontend
+    networks: [petclinic-net]
+    ports:
+      - "${ML_AIR_FRONTEND_PORT:-38080}:3000"
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:18080}
+    depends_on:
+      mlair-api:
+        condition: service_started
+
   vet-ai:
     build:
       context: ../vet-ai
       dockerfile: docker/Dockerfile.api
     container_name: vet-ai
+    user: "${VETAI_UID:-1000}:${VETAI_GID:-1000}"
     networks: [petclinic-net]
     ports:
       - "8000:8000"
     env_file:
-      - ../vet-infra/.env
+      - path: ../vet-infra/.env
+        required: false
+      - path: ./.env.local
+        required: false
     volumes:
+      - ../vet-ai/ai_service/models:/app/ai_service/models
       - ../vet-ml/data/vet-ai-project/veterinary_full_data_10000.csv:/app/baseline/veterinary_full_data_10000.csv:ro
     environment:
       # Prefer values from env_file; keep sane defaults for local
@@ -269,6 +394,8 @@ services:
         condition: service_healthy
       customers-service:
         condition: service_started
+      mlair-api:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -282,7 +409,10 @@ services:
     ports:
       - "8090:8084"
     env_file:
-      - ../vet-infra/.env
+      - path: ../vet-infra/.env
+        required: false
+      - path: ./.env.local
+        required: false
     environment:
       <<: *spring_docker_env
       VETAI_DIAGNOSIS_URL: http://vet-ai:8000
@@ -300,9 +430,13 @@ services:
       context: ../vet-ai
       dockerfile: docker/Dockerfile.training
     container_name: vet-ai-training
+    user: "${VETAI_UID:-1000}:${VETAI_GID:-1000}"
     networks: [petclinic-net]
     env_file:
-      - ../vet-infra/.env
+      - path: ../vet-infra/.env
+        required: false
+      - path: ./.env.local
+        required: false
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
@@ -328,3 +462,4 @@ volumes:
   postgres_data:
   mlflow_artifacts:
   training_data:
+  mlair_postgres_data:
