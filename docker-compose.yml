@@ -271,7 +271,7 @@ services:
       ML_AIR_REDIS_URL: ${ML_AIR_REDIS_URL:-redis://mlair-redis:6379/0}
       ML_AIR_DATABASE_URL: ${ML_AIR_DATABASE_URL:-postgresql://mlair:mlair@mlair-postgres:5432/mlair}
       ML_AIR_JWT_HS256_SECRET: ${ML_AIR_JWT_HS256_SECRET:-mlair-dev-jwt-secret-32bytes-minimum-key}
-      ML_AIR_TRACKING_TOKEN: ${ML_AIR_TRACKING_TOKEN:-maintainer-token}
+      ML_AIR_TRACKING_TOKEN: ${ML_AIR_TRACKING_TOKEN:-admin-token}
       ML_AIR_MANIFEST_SIGNING_KEY: ${ML_AIR_MANIFEST_SIGNING_KEY:-mlair-dev-manifest-signing-key}
       ML_AIR_MANIFEST_ACTIVE_KEY_ID: ${ML_AIR_MANIFEST_ACTIVE_KEY_ID:-v1}
       ML_AIR_MANIFEST_SIGNING_KEYS_JSON: ${ML_AIR_MANIFEST_SIGNING_KEYS_JSON:-{"v1":"mlair-dev-manifest-signing-key"}}
@@ -284,6 +284,13 @@ services:
       ML_AIR_MANIFEST_ED25519_PRIVATE_KEYS_JSON: ${ML_AIR_MANIFEST_ED25519_PRIVATE_KEYS_JSON:-}
       ML_AIR_MANIFEST_ED25519_PUBLIC_KEY: ${ML_AIR_MANIFEST_ED25519_PUBLIC_KEY:-}
       ML_AIR_MANIFEST_ED25519_PUBLIC_KEYS_JSON: ${ML_AIR_MANIFEST_ED25519_PUBLIC_KEYS_JSON:-}
+      ML_AIR_TASK_EXECUTION_MODE: ${ML_AIR_TASK_EXECUTION_MODE:-external}
+      ML_AIR_WORKER_TOKEN: ${ML_AIR_WORKER_TOKEN:-admin-token}
+      ML_AIR_TASK_LEASE_SECONDS: ${ML_AIR_TASK_LEASE_SECONDS:-30}
+      # Persist uploaded CSVs; without this, /dataset-versions/.../download fails after container recreate.
+      ML_AIR_DATASET_ARTIFACT_ROOT: ${ML_AIR_DATASET_ARTIFACT_ROOT:-file:///mlair/artifacts/datasets}
+    volumes:
+      - mlair_dataset_artifacts:/mlair/artifacts/datasets
     depends_on:
       mlair-redis:
         condition: service_started
@@ -311,6 +318,8 @@ services:
       ML_AIR_MANIFEST_SIGNING_ALGORITHM: ${ML_AIR_MANIFEST_SIGNING_ALGORITHM:-hmac-sha256}
       ML_AIR_MANIFEST_ED25519_PUBLIC_KEY: ${ML_AIR_MANIFEST_ED25519_PUBLIC_KEY:-}
       ML_AIR_MANIFEST_ED25519_PUBLIC_KEYS_JSON: ${ML_AIR_MANIFEST_ED25519_PUBLIC_KEYS_JSON:-}
+      ML_AIR_TASK_EXECUTION_MODE: ${ML_AIR_TASK_EXECUTION_MODE:-external}
+      ML_AIR_LEASE_REAP_INTERVAL_SECONDS: ${ML_AIR_LEASE_REAP_INTERVAL_SECONDS:-5}
     depends_on:
       mlair-redis:
         condition: service_started
@@ -326,7 +335,12 @@ services:
       ML_AIR_REDIS_URL: ${ML_AIR_REDIS_URL:-redis://mlair-redis:6379/0}
       ML_AIR_DATABASE_URL: ${ML_AIR_DATABASE_URL:-postgresql://mlair:mlair@mlair-postgres:5432/mlair}
       ML_AIR_API_BASE_URL: http://mlair-api:8080
-      ML_AIR_TRACKING_TOKEN: ${ML_AIR_TRACKING_TOKEN:-maintainer-token}
+      ML_AIR_TRACKING_TOKEN: ${ML_AIR_TRACKING_TOKEN:-admin-token}
+      VETAI_TRAIN_API_BASE_URL: ${VETAI_TRAIN_API_BASE_URL:-http://vet-ai:8000}
+      VETAI_TRAIN_API_ADMIN_TOKEN: ${VETAI_TRAIN_API_ADMIN_TOKEN:-admin-secret}
+      VETAI_TRAIN_API_TIMEOUT_SECONDS: ${VETAI_TRAIN_API_TIMEOUT_SECONDS:-20}
+      VETAI_TRAIN_POLL_INTERVAL_SECONDS: ${VETAI_TRAIN_POLL_INTERVAL_SECONDS:-3}
+      VETAI_TRAIN_MAX_WAIT_SECONDS: ${VETAI_TRAIN_MAX_WAIT_SECONDS:-3600}
       ML_AIR_MANIFEST_SIGNING_KEY: ${ML_AIR_MANIFEST_SIGNING_KEY:-mlair-dev-manifest-signing-key}
       ML_AIR_MANIFEST_ACTIVE_KEY_ID: ${ML_AIR_MANIFEST_ACTIVE_KEY_ID:-v1}
       ML_AIR_MANIFEST_SIGNING_KEYS_JSON: ${ML_AIR_MANIFEST_SIGNING_KEYS_JSON:-{"v1":"mlair-dev-manifest-signing-key"}}
@@ -354,6 +368,7 @@ services:
       - "${ML_AIR_FRONTEND_PORT:-38080}:3000"
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:18080}
+      NEXT_PUBLIC_TRAIN_PLUGIN_NAME: ${NEXT_PUBLIC_TRAIN_PLUGIN_NAME:-}
     depends_on:
       mlair-api:
         condition: service_started
@@ -389,6 +404,12 @@ services:
       # MLOps clinic dropdown: GET {CUSTOMERS_SERVICE_BASE_URL}{CUSTOMERS_CLINICS_PATH}
       CUSTOMERS_SERVICE_BASE_URL: ${CUSTOMERS_SERVICE_BASE_URL:-http://customers-service:8081}
       CUSTOMERS_CLINICS_CACHE_TTL_SECONDS: ${CUSTOMERS_CLINICS_CACHE_TTL_SECONDS:-60}
+      # MLAir external worker: lease tasks on mlair-api, call continuous-training on this container.
+      MLAIR_ENABLED: ${MLAIR_ENABLED:-true}
+      MLAIR_API_BASE_URL: ${MLAIR_API_BASE_URL:-http://mlair-api:8080}
+      MLAIR_AUTH_TOKEN: ${MLAIR_AUTH_TOKEN:-admin-token}
+      VETAI_MLAIR_WORKER_ENABLED: ${VETAI_MLAIR_WORKER_ENABLED:-true}
+      VETAI_INTERNAL_API_BASE_URL: ${VETAI_INTERNAL_API_BASE_URL:-http://127.0.0.1:8000}
     depends_on:
       mlflow:
         condition: service_healthy
@@ -463,3 +484,4 @@ volumes:
   mlflow_artifacts:
   training_data:
   mlair_postgres_data:
+  mlair_dataset_artifacts:
