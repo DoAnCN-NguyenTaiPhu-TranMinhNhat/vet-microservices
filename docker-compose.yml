@@ -287,6 +287,10 @@ services:
       ML_AIR_TASK_EXECUTION_MODE: ${ML_AIR_TASK_EXECUTION_MODE:-external}
       ML_AIR_WORKER_TOKEN: ${ML_AIR_WORKER_TOKEN:-admin-token}
       ML_AIR_TASK_LEASE_SECONDS: ${ML_AIR_TASK_LEASE_SECONDS:-30}
+      # Optional: after POST .../models/{id}/promote, POST JSON to external executor (URL + bearer; both set = enabled).
+      MLAIR_MODEL_PROMOTE_WEBHOOK_URL: ${MLAIR_MODEL_PROMOTE_WEBHOOK_URL:-}
+      MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN: ${MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN:-}
+      MLAIR_MODEL_PROMOTE_WEBHOOK_TIMEOUT_SECONDS: ${MLAIR_MODEL_PROMOTE_WEBHOOK_TIMEOUT_SECONDS:-15}
       # Persist uploaded CSVs; without this, /dataset-versions/.../download fails after container recreate.
       ML_AIR_DATASET_ARTIFACT_ROOT: ${ML_AIR_DATASET_ARTIFACT_ROOT:-file:///mlair/artifacts/datasets}
     volumes:
@@ -410,6 +414,8 @@ services:
       MLAIR_AUTH_TOKEN: ${MLAIR_AUTH_TOKEN:-admin-token}
       VETAI_MLAIR_WORKER_ENABLED: ${VETAI_MLAIR_WORKER_ENABLED:-true}
       VETAI_INTERNAL_API_BASE_URL: ${VETAI_INTERNAL_API_BASE_URL:-http://127.0.0.1:8000}
+      # Must match a pipeline that exists in MLAir for this tenant/project (no default in Vet-AI client code).
+      MLAIR_PIPELINE_ID: ${MLAIR_PIPELINE_ID:-}
     depends_on:
       mlflow:
         condition: service_healthy
