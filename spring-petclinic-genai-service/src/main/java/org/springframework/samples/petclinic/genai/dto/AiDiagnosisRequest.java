@@ -1,9 +1,11 @@
 package org.springframework.samples.petclinic.genai.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.UUID;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record AiDiagnosisRequest(
         String animal_type,
         String gender,
@@ -20,6 +22,11 @@ public record AiDiagnosisRequest(
         @JsonProperty("clinicId") UUID clinicId,
         /** Pet UUID for continuous-training logs; may also be sent via query param. */
         @JsonProperty("petId") UUID petId,
-        @JsonProperty("visitId") Integer visitId
+        @JsonProperty("visitId") Integer visitId,
+        /**
+         * When set, forwarded to vet-ai {@code /predict} as {@code modelVersion} (must be allowed for the clinic;
+         * list via {@code GET /predict/models} or gateway {@code GET /api/genai/diagnosis/models}).
+         */
+        @JsonProperty("modelVersion") String modelVersion
 ) {
 }

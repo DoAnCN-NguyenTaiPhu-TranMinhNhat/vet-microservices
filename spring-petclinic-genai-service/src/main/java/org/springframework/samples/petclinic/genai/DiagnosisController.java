@@ -66,7 +66,8 @@ public class DiagnosisController {
             r.symptom_duration(),
             fromJwt.get(),
             r.petId(),
-            r.visitId());
+            r.visitId(),
+            r.modelVersion());
     }
 
     @PostMapping("/diagnosis")
@@ -108,8 +109,46 @@ public class DiagnosisController {
             r.symptom_duration(),
             r.clinicId(),
             petId != null ? petId : r.petId(),
-            visitId != null ? visitId : r.visitId()
+            visitId != null ? visitId : r.visitId(),
+            r.modelVersion()
         );
+    }
+
+    @GetMapping("/diagnosis/models")
+    public Mono<Map<String, Object>> listDiagnosisModels(
+        @RequestParam(required = false) String clinicId,
+        @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+
+        String effective = clinicId != null && !clinicId.isBlank()
+            ? clinicId.trim()
+            : clinicAuthJwt.readClinicId(authorization).map(UUID::toString).orElse(null);
+
+        return Mono.fromCallable(() -> aiDiagnosisClient.listPredictModels(effective));
+    }
+
+    /**
+     * Set this clinic's pinned active model for inference (Vet-AI state file under clinic slug).
+     * {@code clinicId} in body optional if JWT carries {@code clinicId}.
+     */
+    @PostMapping("/diagnosis/models/active")
+    public Mono<Map<String, Object>> setDiagnosisActiveModel(
+        @RequestBody SetClinicActiveModelRequest body,
+        @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+
+        if (body == null || body.getModelVersion() == null || body.getModelVersion().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "modelVersion is required");
+        }
+        String clinicKey = body.getClinicId() != null && !body.getClinicId().isBlank()
+            ? body.getClinicId().trim()
+            : clinicAuthJwt.readClinicId(authorization).map(UUID::toString).orElse(null);
+        if (clinicKey == null || clinicKey.isBlank()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "clinicId is required (body or JWT) to set clinic active model");
+        }
+        String mv = body.getModelVersion().trim();
+        logger.info("Setting clinic {} active model to {}", clinicKey, mv);
+        return Mono.fromCallable(() -> aiDiagnosisClient.setClinicActiveModel(clinicKey, mv));
     }
 
     @PostMapping("/diagnosis/{predictionId}/feedback")
@@ -197,6 +236,28 @@ public class DiagnosisController {
     public Mono<Map<String, Object>> manualTrainingCheck() {
         logger.info("Manual training check triggered");
         return scheduledTrainingService.manualTrainingCheck();
+    }
+
+    public static class SetClinicActiveModelRequest {
+        private String modelVersion;
+        /** Optional; otherwise resolved from Authorization JWT (clinic login). */
+        private String clinicId;
+
+        public String getModelVersion() {
+            return modelVersion;
+        }
+
+        public void setModelVersion(String modelVersion) {
+            this.modelVersion = modelVersion;
+        }
+
+        public String getClinicId() {
+            return clinicId;
+        }
+
+        public void setClinicId(String clinicId) {
+            this.clinicId = clinicId;
+        }
     }
 
     // DTOs for request bodies

@@ -13,17 +13,19 @@ public record AiDiagnosisResponse(
         @JsonProperty("predictions") List<Map<String, Object>> predictions,
         @JsonProperty("predictionId") UUID predictionId,
         /** Echo from vet-ai /predict: canonical clinic UUID string applied to the prediction row. */
-        @JsonProperty("clinicId") String clinicId
+        @JsonProperty("clinicId") String clinicId,
+        @JsonProperty("modelScope") String modelScope,
+        @JsonProperty("explicitModelVersion") Boolean explicitModelVersion
 ) {
     public record TopKItem(@JsonProperty("label") String label, @JsonProperty("prob") Double prob) {
     }
 
     public AiDiagnosisResponse(String diagnosis, Double confidence, List<TopKItem> top_k) {
-        this(diagnosis, confidence, top_k, "v1.0", List.of(), null, null);
+        this(diagnosis, confidence, top_k, "v1.0", List.of(), null, null, null, null);
     }
 
     public AiDiagnosisResponse(String diagnosis, Double confidence, List<TopKItem> top_k,
                               String modelVersion, List<Map<String, Object>> predictions, UUID predictionId) {
-        this(diagnosis, confidence, top_k, modelVersion, predictions, predictionId, null);
+        this(diagnosis, confidence, top_k, modelVersion, predictions, predictionId, null, null, null);
     }
 }

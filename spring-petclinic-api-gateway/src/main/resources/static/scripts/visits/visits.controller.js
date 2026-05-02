@@ -49,6 +49,9 @@ angular.module('visits')
                         })
                         .catch(function(error) {
                             console.error('Failed to load visits:', error);
+                        })
+                        .then(function() {
+                            return self.refreshInferenceModels();
                         });
                     
                     // Load veterinarian authentication
@@ -90,6 +93,15 @@ angular.module('visits')
         self.aiLoading = false;
         self.aiPrediction = null;
         self.aiError = null;
+        /** Optional vet-ai model version for POST /predict (empty string = clinic default). */
+        self.selectedInferenceModelVersion = '';
+        self.inferenceModels = [];
+        self.inferenceModelsMeta = null;
+        self.inferenceModelsLoading = false;
+        self.inferenceModelsLoadError = null;
+        self.setActiveModelBusy = false;
+        self.setActiveModelNotice = null;
+        self.setActiveModelError = null;
         /** Accept/Reject feedback (inline; avoids duplicate global HTTP alerts). */
         self.aiFeedbackNotice = null;
         self.aiFeedbackError = null;
@@ -165,6 +177,56 @@ angular.module('visits')
             return 'Could not save feedback. Please try again.';
         }
 
+        self.refreshInferenceModels = function () {
+            self.inferenceModelsLoading = true;
+            self.inferenceModelsLoadError = null;
+            return DiagnosisService.listInferenceModels(clinicIdForSession())
+                .then(function (data) {
+                    self.inferenceModelsMeta = data || {};
+                    self.inferenceModels = (data && data.models) ? data.models : [];
+                })
+                .catch(function (err) {
+                    self.inferenceModelsLoadError = (err.data && err.data.message) || err.statusText
+                        || 'Could not load model list';
+                    self.inferenceModels = [];
+                    self.inferenceModelsMeta = null;
+                })
+                .finally(function () {
+                    self.inferenceModelsLoading = false;
+                });
+        };
+
+        /** Pin Vet-AI clinic active model (persists for “Default” on future runs). */
+        self.setInferenceModelAsClinicDefault = function (version) {
+            var cid = clinicIdForSession();
+            if (!version || String(version).trim() === '') {
+                self.setActiveModelError = 'Pick a model version.';
+                self.setActiveModelNotice = null;
+                return;
+            }
+            if (!cid) {
+                self.setActiveModelError = 'Clinic login required (JWT clinicId).';
+                self.setActiveModelNotice = null;
+                return;
+            }
+            self.setActiveModelBusy = true;
+            self.setActiveModelNotice = null;
+            self.setActiveModelError = null;
+            DiagnosisService.setClinicActiveModel(String(version).trim(), cid)
+                .then(function () {
+                    self.setActiveModelNotice = 'Clinic default model set to ' + version + '.';
+                    self.selectedInferenceModelVersion = '';
+                    return self.refreshInferenceModels();
+                })
+                .catch(function (err) {
+                    self.setActiveModelError = extractFeedbackErrorMessage(err);
+                    self.setActiveModelNotice = null;
+                })
+                .finally(function () {
+                    self.setActiveModelBusy = false;
+                });
+        };
+
         function clinicIdForSession() {
             if (DiagnosisService.readClinicIdForAi) {
                 return DiagnosisService.readClinicIdForAi();
@@ -209,6 +271,9 @@ angular.module('visits')
             self.aiError = null;
             self.aiFeedbackNotice = null;
             self.aiFeedbackError = null;
+            self.selectedInferenceModelVersion = '';
+            self.setActiveModelNotice = null;
+            self.setActiveModelError = null;
         };
         
         // Submit form - create visit first, then optionally AI diagnosis
@@ -301,7 +366,12 @@ angular.module('visits')
                 vaccinationStatus: self.vaccinationStatus
             };
             
-            var diagnosisData = DiagnosisService.createDiagnosisData(formData, petData, clinicIdForSession());
+            var diagnosisData = DiagnosisService.createDiagnosisData(
+                formData,
+                petData,
+                clinicIdForSession(),
+                self.selectedInferenceModelVersion
+            );
 
             // Don't estimate visitId - let backend handle it or require visit creation first
             DiagnosisService.getAIDiagnosis(diagnosisData, null, self.pet.id, self.currentVeterinarianId)

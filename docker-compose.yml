@@ -117,8 +117,13 @@ services:
       discovery-server:
         condition: service_healthy
 
+  # Build from repo so Angular/static UI changes (e.g. visit model picker) ship with the image.
+  # From repo root: mvn -pl spring-petclinic-api-gateway -am package -DskipTests && docker compose build api-gateway
+  # Use localhost/ name so `compose pull` / Podman never queries Docker Hub for a non-existent :local manifest.
   api-gateway:
-    image: springcommunity/spring-petclinic-api-gateway
+    build: ./spring-petclinic-api-gateway
+    image: localhost/vet-petclinic-api-gateway:local
+    pull_policy: build
     container_name: api-gateway
     networks: [petclinic-net]
     ports:
@@ -288,8 +293,9 @@ services:
       ML_AIR_WORKER_TOKEN: ${ML_AIR_WORKER_TOKEN:-admin-token}
       ML_AIR_TASK_LEASE_SECONDS: ${ML_AIR_TASK_LEASE_SECONDS:-30}
       # Optional: after POST .../models/{id}/promote, POST JSON to external executor (URL + bearer; both set = enabled).
-      MLAIR_MODEL_PROMOTE_WEBHOOK_URL: ${MLAIR_MODEL_PROMOTE_WEBHOOK_URL:-}
-      MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN: ${MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN:-}
+      # Dev default: notify Vet-AI when a version is promoted (override in production).
+      MLAIR_MODEL_PROMOTE_WEBHOOK_URL: ${MLAIR_MODEL_PROMOTE_WEBHOOK_URL:-http://vet-ai:8000/internal/mlair/model-promotion}
+      MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN: ${MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN:-dev-mlair-promote-shared}
       MLAIR_MODEL_PROMOTE_WEBHOOK_TIMEOUT_SECONDS: ${MLAIR_MODEL_PROMOTE_WEBHOOK_TIMEOUT_SECONDS:-15}
       # Persist uploaded CSVs; without this, /dataset-versions/.../download fails after container recreate.
       ML_AIR_DATASET_ARTIFACT_ROOT: ${ML_AIR_DATASET_ARTIFACT_ROOT:-file:///mlair/artifacts/datasets}
@@ -412,10 +418,19 @@ services:
       MLAIR_ENABLED: ${MLAIR_ENABLED:-true}
       MLAIR_API_BASE_URL: ${MLAIR_API_BASE_URL:-http://mlair-api:8080}
       MLAIR_AUTH_TOKEN: ${MLAIR_AUTH_TOKEN:-admin-token}
+      # Inbound promote webhook (same bearer MLAir sends; dev default matches mlair-api).
+      MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN: ${MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN:-dev-mlair-promote-shared}
+      # reuse_only = no new v_mlair_* symlinks; pin active only if artifact path matches an existing v* folder.
+      VETAI_MLAIR_PROMOTION_MODE: ${VETAI_MLAIR_PROMOTION_MODE:-materialize}
       VETAI_MLAIR_WORKER_ENABLED: ${VETAI_MLAIR_WORKER_ENABLED:-true}
       VETAI_INTERNAL_API_BASE_URL: ${VETAI_INTERNAL_API_BASE_URL:-http://127.0.0.1:8000}
       # Must match a pipeline that exists in MLAir for this tenant/project (no default in Vet-AI client code).
       MLAIR_PIPELINE_ID: ${MLAIR_PIPELINE_ID:-}
+      # Mirror training: prefer MLAir POST .../runs/trigger; autodiscover first model+dataset in project when ids unset.
+      VETAI_MLAIR_MIRROR_USE_RUNS_TRIGGER: ${VETAI_MLAIR_MIRROR_USE_RUNS_TRIGGER:-true}
+      VETAI_MLAIR_MIRROR_AUTODISCOVER: ${VETAI_MLAIR_MIRROR_AUTODISCOVER:-true}
+      VETAI_MLAIR_MIRROR_MODEL_ID: ${VETAI_MLAIR_MIRROR_MODEL_ID:-}
+      VETAI_MLAIR_MIRROR_DATASET_ID: ${VETAI_MLAIR_MIRROR_DATASET_ID:-}
     depends_on:
       mlflow:
         condition: service_healthy

@@ -82,6 +82,9 @@ public class ContinuousTrainingClient {
         if (effectiveClinic != null) {
             inputMap.put("clinic_id", effectiveClinic);
         }
+        if (request.modelVersion() != null && !request.modelVersion().isBlank()) {
+            inputMap.put("model_version", request.modelVersion().trim());
+        }
 
         Map<String, Object> outputMap = new HashMap<>();
         outputMap.put("diagnosis", response.diagnosis());
@@ -341,7 +344,9 @@ public class ContinuousTrainingClient {
                             response.modelVersion(),
                             response.predictions(),
                             predictionId,
-                            response.clinicId()
+                            response.clinicId(),
+                            response.modelScope(),
+                            response.explicitModelVersion()
                         );
                     });
         })
@@ -371,7 +376,9 @@ public class ContinuousTrainingClient {
                             response.modelVersion(),
                             response.predictions(),
                             predictionId,
-                            response.clinicId()
+                            response.clinicId(),
+                            response.modelScope(),
+                            response.explicitModelVersion()
                         );
                     });
         })

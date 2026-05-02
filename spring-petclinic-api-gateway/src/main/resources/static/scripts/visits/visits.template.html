@@ -97,6 +97,78 @@
         <small class="form-text text-muted">Enter symptoms separated by commas</small>
     </div>
 
+    <div class="border border-primary rounded p-3 mb-3 bg-light shadow-sm">
+        <h4 class="h6 text-primary mb-2">
+            <span class="fa fa-flask" aria-hidden="true"></span>
+            AI diagnosis — model version
+        </h4>
+        <p class="small text-muted mb-2">
+            <strong>Active default</strong> is the model used when you pick <em>Default</em> below or leave override empty.
+            It is stored per clinic on Vet-AI (registry pin) or falls back to global.
+        </p>
+        <div class="alert alert-secondary py-2 px-3 small mb-3" ng-if="$ctrl.inferenceModelsMeta && $ctrl.inferenceModelsMeta.defaultModelVersion">
+            <div><strong>Current active default:</strong> {{$ctrl.inferenceModelsMeta.defaultModelVersion}}
+                <span class="text-muted">({{$ctrl.inferenceModelsMeta.defaultModelScope}})</span></div>
+            <div class="text-muted" ng-if="$ctrl.inferenceModelsMeta.activeSource === 'clinic_pin'">Source: clinic registry (pinned)</div>
+            <div class="text-muted" ng-if="$ctrl.inferenceModelsMeta.activeSource === 'global_fallback'">Source: no clinic pin — using global fallback chain</div>
+            <div class="text-muted" ng-if="$ctrl.inferenceModelsMeta.activeSource === 'global'">Source: global scope (no clinic id)</div>
+        </div>
+        <div class="mb-2">
+            <label class="form-label small text-muted mb-1">Override for this AI run only</label>
+            <div class="d-flex flex-wrap align-items-center">
+                <select class="form-control me-2 mb-2" style="max-width: 28rem;"
+                        id="visit-ai-model-select"
+                        ng-model="$ctrl.selectedInferenceModelVersion"
+                        ng-disabled="$ctrl.inferenceModelsLoading || $ctrl.petLoading">
+                    <option value="">Use active default (above)</option>
+                    <option ng-repeat="m in $ctrl.inferenceModels | filter:{isActiveDefault:false}" ng-value="m.version">
+                        {{m.version}} ({{m.storageScope}})
+                    </option>
+                </select>
+                <button type="button" class="btn btn-outline-primary btn-sm mb-2"
+                        ng-click="$ctrl.refreshInferenceModels()"
+                        ng-disabled="$ctrl.inferenceModelsLoading">Refresh list</button>
+            </div>
+        </div>
+        <div class="table-responsive mb-2">
+            <table class="table table-sm table-bordered mb-0 bg-white">
+                <thead class="table-light">
+                    <tr>
+                        <th>Version</th>
+                        <th>Storage</th>
+                        <th>Default</th>
+                        <th style="min-width: 11rem;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr ng-repeat="m in $ctrl.inferenceModels" ng-class="{'table-success': m.isActiveDefault}">
+                        <td><code>{{m.version}}</code></td>
+                        <td>{{m.storageScope}}</td>
+                        <td>
+                            <span class="badge bg-success" ng-if="m.isActiveDefault">Active default</span>
+                            <span class="text-muted" ng-if="!m.isActiveDefault">—</span>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-primary"
+                                    ng-if="!m.isActiveDefault"
+                                    ng-click="$ctrl.setInferenceModelAsClinicDefault(m.version)"
+                                    ng-disabled="$ctrl.setActiveModelBusy || $ctrl.inferenceModelsLoading || !$ctrl.inferenceModelsMeta.clinicKey">
+                                Set as clinic default
+                            </button>
+                            <span class="text-muted small" ng-if="m.isActiveDefault">—</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="alert alert-success py-2 small mb-2" ng-if="$ctrl.setActiveModelNotice">{{$ctrl.setActiveModelNotice}}</div>
+        <div class="alert alert-warning py-2 small mb-2" ng-if="$ctrl.setActiveModelError">{{$ctrl.setActiveModelError}}</div>
+        <small class="form-text text-muted d-block" ng-if="!$ctrl.inferenceModelsLoadError">
+            “Set as clinic default” calls Vet-AI <code>POST /models/clinic/&lt;id&gt;/active</code> (via genai). Requires clinic login JWT.
+        </small>
+        <small class="form-text text-warning d-block" ng-if="$ctrl.inferenceModelsLoadError">{{$ctrl.inferenceModelsLoadError}}</small>
+    </div>
+
     <div class="form-group">
         <label>Medical History</label>
         <textarea class="form-control" ng-model="$ctrl.medicalHistory" 
@@ -136,6 +208,11 @@
     <!-- AI Diagnosis Results -->
     <div ng-if="$ctrl.aiPrediction" class="alert alert-info shadow-soft mt-3">
         <h4>AI Diagnosis Results</h4>
+        <p class="text-muted small" ng-if="$ctrl.aiPrediction.modelVersion">
+            <strong>Model:</strong> {{$ctrl.aiPrediction.modelVersion}}
+            <span ng-if="$ctrl.aiPrediction.modelScope"> ({{$ctrl.aiPrediction.modelScope}})</span>
+            <span ng-if="$ctrl.aiPrediction.explicitModelVersion === true"> — explicit selection</span>
+        </p>
         <p><strong>Prediction:</strong> {{$ctrl.aiPrediction.diagnosis}}</p>
         <p><strong>Confidence:</strong> {{$ctrl.aiPrediction.confidence * 100 | number:1}}%</p>
         <p><strong>Top Predictions:</strong></p>

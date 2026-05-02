@@ -37,6 +37,40 @@ angular.module('core')
             return null;
         };
         
+        /**
+         * Models available for POST diagnosis (same rules as vet-ai /predict/models).
+         * @param {string|null} clinicId optional UUID string
+         */
+        self.setClinicActiveModel = function(modelVersion, clinicId) {
+            var body = { modelVersion: String(modelVersion).trim() };
+            if (clinicId != null && String(clinicId).trim() !== '') {
+                body.clinicId = String(clinicId).trim();
+            }
+            return $http.post(ApiConfig.DIAGNOSIS_MODELS_ACTIVE, body)
+                .then(function(response) {
+                    return response.data;
+                })
+                .catch(function(error) {
+                    console.error('Failed to set clinic active model:', error);
+                    return $q.reject(error);
+                });
+        };
+
+        self.listInferenceModels = function(clinicId) {
+            var url = ApiConfig.DIAGNOSIS_MODELS;
+            if (clinicId != null && String(clinicId).trim() !== '') {
+                url += '?clinicId=' + encodeURIComponent(String(clinicId).trim());
+            }
+            return $http.get(url)
+                .then(function(response) {
+                    return response.data;
+                })
+                .catch(function(error) {
+                    console.error('Failed to load inference models:', error);
+                    return $q.reject(error);
+                });
+        };
+
         self.getAIDiagnosis = function(diagnosisData, visitId, petId, veterinarianId) {
             var url = ApiConfig.DIAGNOSIS;
             
@@ -92,7 +126,7 @@ angular.module('core')
                 });
         };
         
-        self.createDiagnosisData = function(formData, petData, clinicId) {
+        self.createDiagnosisData = function(formData, petData, clinicId, modelVersion) {
             var payload = {
                 symptoms_list: Array.isArray(formData.symptomsList) ? formData.symptomsList.join(', ') : formData.symptomsList,
                 temperature: formData.temperature,
@@ -108,6 +142,9 @@ angular.module('core')
             };
             if (clinicId != null && clinicId !== undefined && String(clinicId).trim() !== '') {
                 payload.clinicId = String(clinicId).trim();
+            }
+            if (modelVersion != null && String(modelVersion).trim() !== '') {
+                payload.modelVersion = String(modelVersion).trim();
             }
             return payload;
         };
