@@ -17,6 +17,7 @@ package org.springframework.samples.petclinic.api.boundary.web;
 
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreaker;
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.samples.petclinic.api.application.CustomersServiceClient;
 import org.springframework.samples.petclinic.api.application.VisitsServiceClient;
 import org.springframework.samples.petclinic.api.dto.OwnerDetails;
@@ -29,9 +30,13 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
@@ -53,13 +58,17 @@ public class ApiGatewayController {
     private final VisitsServiceClient visitsServiceClient;
 
     private final ReactiveCircuitBreakerFactory cbFactory;
+    private final WebClient genaiProxyClient;
 
     public ApiGatewayController(CustomersServiceClient customersServiceClient,
                                 VisitsServiceClient visitsServiceClient,
-                                ReactiveCircuitBreakerFactory cbFactory) {
+                                ReactiveCircuitBreakerFactory cbFactory,
+                                WebClient.Builder webClientBuilder,
+                                @Value("${genai.service.base-url:http://genai-service:8084}") String genaiBaseUrl) {
         this.customersServiceClient = customersServiceClient;
         this.visitsServiceClient = visitsServiceClient;
         this.cbFactory = cbFactory;
+        this.genaiProxyClient = webClientBuilder.baseUrl(genaiBaseUrl).build();
     }
 
     @GetMapping(value = "owners/{ownerId}")
@@ -93,6 +102,41 @@ public class ApiGatewayController {
         Object clinicAdmin = jwt.getClaim("clinicAdmin");
         user.put("clinicAdmin", clinicAdmin instanceof Boolean b ? b : Boolean.FALSE);
         return Mono.just(user);
+    }
+
+    /**
+     * Explicit proxy for setting active diagnosis model to avoid method-routing mismatches
+     * on generic gateway route handling.
+     */
+    @RequestMapping(value = "/genai/diagnosis/models/active", method = {
+        RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.PATCH, RequestMethod.DELETE
+    })
+    public Mono<Map<String, Object>> proxySetDiagnosisActiveModel(
+        @RequestBody(required = false) Map<String, Object> body,
+        @RequestParam(required = false) String clinicId,
+        @RequestParam(required = false) String modelVersion,
+        @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        if (body != null) {
+            payload.putAll(body);
+        }
+        if (!payload.containsKey("clinicId") && clinicId != null && !clinicId.isBlank()) {
+            payload.put("clinicId", clinicId.trim());
+        }
+        if (!payload.containsKey("modelVersion") && modelVersion != null && !modelVersion.isBlank()) {
+            payload.put("modelVersion", modelVersion.trim());
+        }
+
+        WebClient.RequestBodySpec req = genaiProxyClient.post().uri("/diagnosis/models/active");
+        if (authorization != null && !authorization.isBlank()) {
+            req = req.header(HttpHeaders.AUTHORIZATION, authorization);
+        }
+        return req
+            .bodyValue(payload)
+            .retrieve()
+            .bodyToMono(Map.class)
+            .map(m -> (Map<String, Object>) m);
     }
 
     private Function<Visits, OwnerDetails> addVisitsToOwner(OwnerDetails owner) {

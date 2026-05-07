@@ -377,7 +377,8 @@ services:
     ports:
       - "${ML_AIR_FRONTEND_PORT:-38080}:3000"
     environment:
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:18080}
+      # Browser on host must reach mlair-api (default host port matches ML_AIR_API_PORT below, not the Next port).
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
       NEXT_PUBLIC_TRAIN_PLUGIN_NAME: ${NEXT_PUBLIC_TRAIN_PLUGIN_NAME:-}
     depends_on:
       mlair-api:
