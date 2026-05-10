@@ -273,6 +273,8 @@ services:
       MLAIR_TIMEOUT_SECONDS: ${MLAIR_TIMEOUT_SECONDS:-120}
       # Shared secret: mlair-api MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN must match when calling this URL.
       MLAIR_PROMOTE_WEBHOOK_INBOUND_TOKEN: ${MLAIR_PROMOTE_WEBHOOK_INBOUND_TOKEN:-}
+      # Optional: inbound POST /mlops/mlair/training-invoke (real Vet-AI training, not MLAir demo executor).
+      MLAIR_TRAINING_INVOKE_TOKEN: ${MLAIR_TRAINING_INVOKE_TOKEN:-}
       # Local test: reuse postgres-mlflow for continuous-training persistence.
       # For production, prefer separate DB/schema and credential.
       DATABASE_URL: ${DATABASE_URL:-postgresql://mlflow:mlflow@postgres:5432/mlflow}
@@ -455,6 +457,22 @@ services:
                 )
         "
         alembic upgrade head
+        python -c "
+        # Hotfix for ml-air-api (2026-05): ingest_lineage_from_task called a keyword-only
+        # helper with positional args, causing 500 and preventing runtime_feedback materialization.
+        # Patch is idempotent and safe across image tags.
+        from pathlib import Path
+        p = Path('/app/app/services/lineage_service.py')
+        if p.exists():
+            s = p.read_text(encoding='utf-8')
+            before = s
+            s = s.replace(
+                'materialized_version_id, materialized_version = _materialize_runtime_feedback_if_needed(\\n                tenant_id,\\n                project_id,',
+                'materialized_version_id, materialized_version = _materialize_runtime_feedback_if_needed(\\n                tenant_id=tenant_id,\\n                project_id=project_id,',
+            )
+            if s != before:
+                p.write_text(s, encoding='utf-8')
+        "
         python -c "
         import os
         import psycopg
