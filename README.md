@@ -112,7 +112,7 @@ DACN/
 └── vet-ml/                     # (optional) baseline CSV mounted by compose
 ```
 
-`docker-compose.yml` assumes relative paths `../vet-ai`, `../vet-infra`, and `../vet-ml` as above. If you move folders, update `context`, `env_file`, and `volumes` in Compose accordingly.
+`docker-compose.yml` assumes relative paths `../vet-ai`, `../vet-infra`, and `../vet-ml` as above. If you move folders, update `context`, `env_file`, and `volumes` in Compose accordingly. MLAir uses **pre-built images** from GitHub Container Registry (see §7.3); no local ml-air clone is required.
 
 ---
 
@@ -153,12 +153,44 @@ Default is `linux/amd64`. Example for ARM:
 ### 7.1 Important environment variables
 
 - **Spring (Compose):** services use the `deploy` profile and variables such as `CONFIG_SERVER_URL`, `JWT_SECRET`. For real JWT usage, `JWT_SECRET` should be **≥ 32 bytes** (Compose provides a dev default).
-- **Env file:** some services (`vet-ai`, `genai-service`) load `env_file: ../vet-infra/.env`. Create that file from a template in `vet-infra` (if available) or set at least the variables overridden in the `environment` blocks for `vet-ai` and `genai-service`.
+- **Env file:** `vet-ai`, `genai-service`, and `vet-ai-training` load `env_file: ../vet-infra/.env` (optional) then **`./.env`** — keep one consolidated `.env` in this folder (see `.env.example`).
 - **Config Git:** point the Config Server at [vet-microservices-config](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-microservices-config) (URL and credentials per environment). For local runs without Docker, you can use the `native` profile and `GIT_REPO` pointing at a local clone (see Spring Cloud Config docs).
 
 ### 7.2 Vet-AI and MLflow (Compose)
 
 See Compose for `DATABASE_URL`, `MLFLOW_TRACKING_URI`, `ADMIN_TOKEN`, `MODEL_DIR`, `CUSTOMERS_SERVICE_BASE_URL`, etc. Details: [vet-ai](https://github.com/DoAnCN-NguyenTaiPhu-TranMinhNhat/vet-ai) README.
+
+### 7.3 MLAir (optional Compose profile)
+
+Vet-AI can push trained `model.pkl` into the MLAir registry after each successful run when `MLAIR_API_BASE_URL` is set (see vet-ai `.env.example`).
+
+Compose pulls **published images** from GHCR for [phu142857/ml-air](https://github.com/phu142857/ml-air) (same pattern as pulling a versioned service image, not building from source). Packages: `ghcr.io/phu142857/ml-air-api`, `ml-air-scheduler`, `ml-air-executor`, `ml-air-frontend` (see repo **Actions → publish-images** and [Packages](https://github.com/phu142857/ml-air/pkgs/container/ml-air-api)).
+
+1. Ensure **`COMPOSE_PROFILES=mlair`** is in **`vet-microservices/.env`** (included in the template) so a plain `docker compose up` starts MLAir too. Otherwise run explicitly:
+
+   ```bash
+   docker compose --profile mlair pull
+   docker compose --profile mlair up -d
+   ```
+
+2. In **`vet-microservices/.env`** (or `vet-infra/.env` if you merge there), point Vet-AI at the API container:
+
+   - `MLAIR_API_BASE_URL=http://mlair-api:8080`
+   - `MLAIR_API_TOKEN=admin-token` (must match `ML_AIR_TRACKING_TOKEN` on the MLAir API container)
+
+3. **Image tag:** set `MLAIR_IMAGE_TAG` to a release tag (for example `v0.4.0`) for reproducible deploys; default is `latest`.
+
+4. **Optional:** `MLAIR_IMAGE_OWNER` if you fork (default `phu142857`). `MLAIR_PULL_POLICY` (default `always`) controls re-pulling `latest`.
+
+5. **Frontend ↔ API URL:** the Next.js bundle is built with `NEXT_PUBLIC_API_BASE_URL` from the ml-air repo’s GitHub Actions **Variables** at publish time. For local Compose, that value should match how your **browser** reaches the API (often `http://localhost:18080` if you map the API to host port `18080`). If the UI cannot load data, align that variable in ml-air releases or use a tag built with the correct URL.
+
+6. **Realtime:** upstream GHCR publish does not include a `realtime` image; this stack sets `MLAIR_REALTIME_ENABLED=false` by default (no live WebSocket fan-out). Core API and registry import from Vet-AI still work.
+
+7. **`mlair-api` exits (1) with `value too long for type character varying(32)`:** Alembic’s default `alembic_version.version_num` is only 32 characters; some migration revision ids are longer. `docker-compose.yml` widens the column before `alembic upgrade head`. If you still see this on an old volume, run once:  
+   `docker compose exec mlair-postgres psql -U mlair -d mlair -c "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(255);"`  
+   then `docker compose up -d mlair-api`, or remove the `mlair_pgdata` volume for a clean DB (dev only).
+
+If you only start the default stack without `--profile mlair`, omit `MLAIR_API_BASE_URL` so Vet-AI does not call MLAir.
 
 ---
 
@@ -176,6 +208,8 @@ After building images (section 6):
 docker compose up -d
 # or: podman-compose up -d
 ```
+
+Compose automatically reads a file named **`.env`** next to `docker-compose.yml` (gitignored). For MLAir, that file should define `MLAIR_API_BASE_URL`, `MLAIR_IMAGE_*`, etc. — copy the block from `.env.example` into `.env` on first setup.
 
 The first requests to Eureka/Gateway may time out briefly — check registration on Eureka (section 9).
 

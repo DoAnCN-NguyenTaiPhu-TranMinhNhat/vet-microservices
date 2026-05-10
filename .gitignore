@@ -23,7 +23,7 @@ Thumbs.db
 **/node_modules/
 **/dist/
 
-# Env
+# Env — dùng `.env` duy nhất (compose + env_file). `.env.local` chỉ còn ignore để tránh commit nhầm.
 .env
 .env.local
 .env.*.local

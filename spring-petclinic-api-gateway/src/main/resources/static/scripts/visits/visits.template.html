@@ -107,7 +107,7 @@
             It is stored per clinic on Vet-AI (registry pin) or falls back to global.
         </p>
         <div class="alert alert-secondary py-2 px-3 small mb-3" ng-if="$ctrl.inferenceModelsMeta && $ctrl.inferenceModelsMeta.defaultModelVersion">
-            <div><strong>Current active default:</strong> {{$ctrl.inferenceModelsMeta.defaultModelVersion}}
+            <div><strong>Current active default:</strong> {{$ctrl.inferenceModelsMeta.defaultModelLabel || $ctrl.inferenceModelsMeta.defaultModelVersion}}
                 <span class="text-muted">({{$ctrl.inferenceModelsMeta.defaultModelScope}})</span></div>
             <div class="text-muted" ng-if="$ctrl.inferenceModelsMeta.activeSource === 'clinic_pin'">Source: clinic registry (pinned)</div>
             <div class="text-muted" ng-if="$ctrl.inferenceModelsMeta.activeSource === 'global_fallback'">Source: no clinic pin — using global fallback chain</div>
@@ -122,7 +122,7 @@
                         ng-disabled="$ctrl.inferenceModelsLoading || $ctrl.petLoading">
                     <option value="">Use active default (above)</option>
                     <option ng-repeat="m in $ctrl.inferenceModels | filter:{isActiveDefault:false}" ng-value="m.version">
-                        {{m.version}} ({{m.storageScope}})
+                        {{m.label || m.version}} ({{m.storageScope}})
                     </option>
                 </select>
                 <button type="button" class="btn btn-outline-primary btn-sm mb-2"
@@ -142,7 +142,7 @@
                 </thead>
                 <tbody>
                     <tr ng-repeat="m in $ctrl.inferenceModels" ng-class="{'table-success': m.isActiveDefault}">
-                        <td><code>{{m.version}}</code></td>
+                        <td><code title="{{m.version}}">{{m.label || m.version}}</code></td>
                         <td>{{m.storageScope}}</td>
                         <td>
                             <span class="badge bg-success" ng-if="m.isActiveDefault">Active default</span>
