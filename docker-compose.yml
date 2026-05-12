@@ -258,7 +258,8 @@ services:
       - path: ./.env
         required: false
     volumes:
-      - ../vet-ai/ai_service/models:/app/ai_service/models
+      # Use a named volume to avoid host bind-mount permission issues under rootless engines.
+      - vetai_models:/app/ai_service/models
       - ../vet-ml/data/vet-ai-project/veterinary_full_data_10000.csv:/app/baseline/veterinary_full_data_10000.csv:ro
     environment:
       # Prefer values from env_file; keep sane defaults for local
@@ -403,8 +404,8 @@ services:
 
   mlair-api:
     profiles: ["mlair"]
-    image: ghcr.io/${MLAIR_IMAGE_OWNER:-phu142857}/ml-air-api:${MLAIR_IMAGE_TAG:-latest}
-    pull_policy: ${MLAIR_PULL_POLICY:-always}
+    image: ${MLAIR_API_IMAGE:-localhost/ml-air-api:local}
+    pull_policy: ${MLAIR_API_PULL_POLICY:-never}
     container_name: mlair-api
     networks: [petclinic-net]
     environment:
@@ -428,6 +429,7 @@ services:
     volumes:
       - mlair_dataset_artifacts:/mlair/artifacts/datasets
       - mlair_model_artifacts:/mlair/artifacts/models
+      - ./mlair/custom_plugins/vetai_mlair_plugins:/mlair/custom_plugins/vetai_mlair_plugins:rw
     depends_on:
       mlair-redis:
         condition: service_started
@@ -473,6 +475,9 @@ services:
             if s != before:
                 p.write_text(s, encoding='utf-8')
         "
+        # Install custom plugins into API env (entry-point discovery: mlair.plugins).
+        # This makes the plugin visible to /v1/.../plugins and pipeline validation.
+        pip install -e /mlair/custom_plugins/vetai_mlair_plugins
         python -c "
         import os
         import psycopg
@@ -510,8 +515,8 @@ services:
 
   mlair-scheduler:
     profiles: ["mlair"]
-    image: ghcr.io/${MLAIR_IMAGE_OWNER:-phu142857}/ml-air-scheduler:${MLAIR_IMAGE_TAG:-latest}
-    pull_policy: ${MLAIR_PULL_POLICY:-always}
+    image: ${MLAIR_SCHEDULER_IMAGE:-localhost/ml-air-scheduler:local}
+    pull_policy: ${MLAIR_SCHEDULER_PULL_POLICY:-never}
     container_name: mlair-scheduler
     networks: [petclinic-net]
     environment:
@@ -521,6 +526,27 @@ services:
       ML_AIR_MANIFEST_SIGNING_KEY: ${ML_AIR_MANIFEST_SIGNING_KEY:-mlair-dev-manifest-signing-key}
       ML_AIR_MANIFEST_ACTIVE_KEY_ID: ${ML_AIR_MANIFEST_ACTIVE_KEY_ID:-v1}
       MLAIR_REALTIME_ENABLED: ${MLAIR_REALTIME_ENABLED:-false}
+    # Hotpatch: propagate project_id/tenant_id into task.context so plugin runners
+    # don't require UI callers to manually pass run-scoped context.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        python -c "
+        from pathlib import Path
+        p = Path('/app/main.py')
+        if p.exists():
+            s = p.read_text(encoding='utf-8')
+            before = s
+            needle = '\"context\": run_event.get(\"context\", {}),'
+            repl = '\"context\": {**({\"tenant_id\": run_event.get(\"tenant_id\", \"default\"), \"project_id\": run_event.get(\"project_id\", \"default_project\")}), **(run_event.get(\"context\") or {})},'
+            if needle in s and repl not in s:
+                s = s.replace(needle, repl)
+            if s != before:
+                p.write_text(s, encoding='utf-8')
+        "
+        exec python main.py
     depends_on:
       mlair-redis:
         condition: service_started
@@ -530,8 +556,8 @@ services:
 
   mlair-executor:
     profiles: ["mlair"]
-    image: ghcr.io/${MLAIR_IMAGE_OWNER:-phu142857}/ml-air-executor:${MLAIR_IMAGE_TAG:-latest}
-    pull_policy: ${MLAIR_PULL_POLICY:-always}
+    image: ${MLAIR_EXECUTOR_IMAGE:-localhost/ml-air-executor:local}
+    pull_policy: ${MLAIR_EXECUTOR_PULL_POLICY:-never}
     container_name: mlair-executor
     networks: [petclinic-net]
     environment:
@@ -541,6 +567,23 @@ services:
       ML_AIR_TRACKING_TOKEN: ${ML_AIR_TRACKING_TOKEN:-admin-token}
       ML_AIR_MANIFEST_SIGNING_KEY: ${ML_AIR_MANIFEST_SIGNING_KEY:-mlair-dev-manifest-signing-key}
       ML_AIR_MANIFEST_ACTIVE_KEY_ID: ${ML_AIR_MANIFEST_ACTIVE_KEY_ID:-v1}
+      ML_AIR_TENANT_ID: ${MLAIR_TENANT_ID:-default}
+      ML_AIR_PROJECT_ID: ${MLAIR_PROJECT_ID:-default_project}
+      # Use our runner for real Vet-AI training tasks.
+      ML_AIR_PLUGIN_RUNNER_MODULE: mlair_ext_runner
+      PYTHONPATH: /mlair/custom_runner
+      VETAI_BASE_URL: ${VETAI_BASE_URL:-http://vet-ai:8000}
+      VETAI_TRAINING_INVOKE_URL: ${VETAI_TRAINING_INVOKE_URL:-http://vet-ai:8000/mlops/mlair/training-invoke}
+      VETAI_DATASET_TRAIN_URL: ${VETAI_DATASET_TRAIN_URL:-http://vet-ai:8000/mlops/mlair/dataset-train-invoke}
+      VETAI_TRAINING_INVOKE_TOKEN: ${MLAIR_TRAINING_INVOKE_TOKEN:-}
+      VETAI_TRAINING_STATUS_URL: ${VETAI_TRAINING_STATUS_URL:-}
+      VETAI_HTTP_TIMEOUT_SECONDS: ${VETAI_HTTP_TIMEOUT_SECONDS:-30}
+      VETAI_TRAINING_POLL_SECONDS: ${VETAI_TRAINING_POLL_SECONDS:-5}
+      VETAI_TRAINING_MAX_WAIT_SECONDS: ${VETAI_TRAINING_MAX_WAIT_SECONDS:-3600}
+      ML_AIR_PLUGIN_TIMEOUT_SECONDS: ${MLAIR_PLUGIN_TIMEOUT_SECONDS:-1200}
+    volumes:
+      - ./mlair/custom_runner:/mlair/custom_runner:ro
+      - ./mlair/executor_main_override.py:/app/main.py:ro
     depends_on:
       mlair-redis:
         condition: service_started
@@ -552,8 +595,8 @@ services:
 
   mlair-frontend:
     profiles: ["mlair"]
-    image: ghcr.io/${MLAIR_IMAGE_OWNER:-phu142857}/ml-air-frontend:${MLAIR_IMAGE_TAG:-latest}
-    pull_policy: ${MLAIR_PULL_POLICY:-always}
+    image: ${MLAIR_FRONTEND_IMAGE:-localhost/ml-air-frontend:local}
+    pull_policy: ${MLAIR_FRONTEND_PULL_POLICY:-never}
     container_name: mlair-frontend
     networks: [petclinic-net]
     volumes:
@@ -584,6 +627,7 @@ volumes:
   postgres_data:
   mlflow_artifacts:
   training_data:
+  vetai_models:
   mlair_pgdata:
   mlair_dataset_artifacts:
   mlair_model_artifacts:

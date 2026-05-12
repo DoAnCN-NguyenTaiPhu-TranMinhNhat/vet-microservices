@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vetai-mlair-plugins"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.entry-points."mlair.plugins"]
+vetai_train_invoke = "vetai_mlair_plugins.plugins:VetAiTrainInvokePlugin"
+vetai_train_from_dataset_version = "vetai_mlair_plugins.plugins:VetAiTrainFromDatasetVersionPlugin"
+vetai_data_prep = "vetai_mlair_plugins.plugins:VetAiDataPrepPlugin"
+vetai_model_train = "vetai_mlair_plugins.plugins:VetAiModelTrainPlugin"
+vetai_validation = "vetai_mlair_plugins.plugins:VetAiValidationPlugin"
+vetai_persist = "vetai_mlair_plugins.plugins:VetAiPersistPlugin"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vetai_mlair_plugins*"]
+

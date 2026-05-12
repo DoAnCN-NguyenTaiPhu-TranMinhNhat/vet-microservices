@@ -1,0 +1,7 @@
+[mlair.plugins]
+vetai_data_prep = vetai_mlair_plugins.plugins:VetAiDataPrepPlugin
+vetai_model_train = vetai_mlair_plugins.plugins:VetAiModelTrainPlugin
+vetai_persist = vetai_mlair_plugins.plugins:VetAiPersistPlugin
+vetai_train_from_dataset_version = vetai_mlair_plugins.plugins:VetAiTrainFromDatasetVersionPlugin
+vetai_train_invoke = vetai_mlair_plugins.plugins:VetAiTrainInvokePlugin
+vetai_validation = vetai_mlair_plugins.plugins:VetAiValidationPlugin
