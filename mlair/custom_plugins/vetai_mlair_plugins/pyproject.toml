@@ -15,6 +15,9 @@ vetai_data_prep = "vetai_mlair_plugins.plugins:VetAiDataPrepPlugin"
 vetai_model_train = "vetai_mlair_plugins.plugins:VetAiModelTrainPlugin"
 vetai_validation = "vetai_mlair_plugins.plugins:VetAiValidationPlugin"
 vetai_persist = "vetai_mlair_plugins.plugins:VetAiPersistPlugin"
+vetai_feedback_extract = "vetai_mlair_plugins.plugins:VetAiFeedbackExtractPlugin"
+vetai_feedback_transform = "vetai_mlair_plugins.plugins:VetAiFeedbackTransformPlugin"
+vetai_feedback_load = "vetai_mlair_plugins.plugins:VetAiFeedbackLoadPlugin"
 
 [tool.setuptools.packages.find]
 where = ["."]

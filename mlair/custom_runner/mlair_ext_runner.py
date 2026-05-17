@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional
 
@@ -75,10 +76,7 @@ def _vetai_training_invoke_context(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _vetai_dataset_train_context(ctx: Dict[str, Any]) -> Dict[str, Any]:
-    if isinstance(ctx.get("context"), dict):
-        c = dict(ctx.get("context") or {})
-    else:
-        c = dict(ctx)
+    c = _enrich_vetai_plugin_context(ctx)
 
     pid = (c.get("project_id") or "").strip()
     if not pid:
@@ -231,6 +229,11 @@ def _extract_run_id(ctx: Dict[str, Any]) -> Optional[str]:
             return v.strip()
         if isinstance(v, int):
             return str(v)
+    task_id = ctx.get("task_id")
+    if isinstance(task_id, str) and ":" in task_id:
+        prefix = task_id.split(":", 1)[0].strip()
+        if prefix:
+            return prefix
     return None
 
 
@@ -460,27 +463,86 @@ def _run_vetai_dataset_train(plugin_context: Dict[str, Any]) -> Dict[str, Any]:
 # ── Multi-phase pipeline handlers ──────────────────────────────────────
 
 
+def _mlair_api_get_json(path: str, token: str, timeout_seconds: int) -> Dict[str, Any]:
+    base = (os.getenv("ML_AIR_API_BASE_URL") or "http://mlair-api:8080").strip().rstrip("/")
+    url = f"{base}{path}"
+    req = urllib.request.Request(
+        url,
+        method="GET",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+        raw = resp.read()
+    if not raw:
+        return {}
+    return json.loads(raw.decode("utf-8"))
+
+
+def _enrich_vetai_plugin_context(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Merge run ``plugin_context`` + ``override_config`` from MLAir API when ``run_id`` is present.
+
+    Scheduler task events only carry run-level ``plugin_context``; ``dataset_version_id`` is often
+  only in ``override_config`` (Datasets → train from model).
+    """
+    if isinstance(ctx.get("context"), dict):
+        merged: Dict[str, Any] = dict(ctx.get("context") or {})
+        merged.update({k: v for k, v in ctx.items() if k != "context"})
+    else:
+        merged = dict(ctx)
+
+    run_id = _extract_run_id(merged)
+    tenant_id = str(merged.get("tenant_id") or os.getenv("ML_AIR_TENANT_ID") or "default").strip()
+    project_id = str(
+        merged.get("project_id") or os.getenv("ML_AIR_PROJECT_ID") or "default_project"
+    ).strip()
+    token = (os.getenv("ML_AIR_TRACKING_TOKEN") or os.getenv("MLAIR_API_TOKEN") or "admin-token").strip()
+    if run_id and tenant_id and project_id and token:
+        try:
+            timeout = _env_int("VETAI_HTTP_TIMEOUT_SECONDS", 30)
+            safe_tid = urllib.parse.quote(tenant_id, safe="")
+            safe_pid = urllib.parse.quote(project_id, safe="")
+            safe_rid = urllib.parse.quote(str(run_id), safe="")
+            run = _mlair_api_get_json(
+                f"/v1/tenants/{safe_tid}/projects/{safe_pid}/runs/{safe_rid}",
+                token,
+                timeout,
+            )
+            if isinstance(run, dict):
+                pc = run.get("plugin_context") if isinstance(run.get("plugin_context"), dict) else {}
+                ov = run.get("override_config") if isinstance(run.get("override_config"), dict) else {}
+                merged = {**pc, **ov, **merged}
+        except Exception as exc:
+            _log(f"WARN: could not load MLAir run {run_id} for context merge: {exc}")
+
+    return merged
+
+
 def _vetai_phase_context(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """Build the common POST body for phase endpoints from executor context."""
-    if isinstance(ctx.get("context"), dict):
-        c = dict(ctx.get("context") or {})
-    else:
-        c = dict(ctx)
+    c = _enrich_vetai_plugin_context(ctx)
 
-    pid = (c.get("project_id") or "").strip()
-    if not pid:
-        raise ValueError("context.project_id is required")
+    pid = (
+        c.get("project_id")
+        or os.getenv("ML_AIR_PROJECT_ID")
+        or "default_project"
+    )
+    pid = str(pid).strip() or "default_project"
 
     out: Dict[str, Any] = {"project_id": pid}
-    tid = (c.get("tenant_id") or "").strip()
+    tid = str(c.get("tenant_id") or os.getenv("ML_AIR_TENANT_ID") or "default").strip()
     if tid:
         out["tenant_id"] = tid
     mode = str(c.get("training_mode") or "local").strip() or "local"
     out["training_mode"] = mode
 
     dvid = (c.get("dataset_version_id") or "").strip()
-    if dvid:
-        out["dataset_version_id"] = dvid
+    if not dvid:
+        raise ValueError(
+            "dataset_version_id is required in run plugin_context or override_config "
+            "(use Datasets → train from model + dataset version, not bare pipeline Run)"
+        )
+    out["dataset_version_id"] = dvid
 
     return out
 
@@ -625,6 +687,164 @@ def _run_vetai_persist(ctx: Dict[str, Any]) -> Dict[str, Any]:
     return _run_vetai_phase(ctx, "persist", "VETAI_PERSIST_URL", "/mlops/mlair/persist-invoke")
 
 
+def _vetai_feedback_etl_context(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    c = _enrich_vetai_plugin_context(ctx)
+    pid = (c.get("project_id") or "").strip()
+    if not pid:
+        raise ValueError("context.project_id is required")
+    out: Dict[str, Any] = {"project_id": pid}
+    tid = (c.get("tenant_id") or "").strip()
+    if tid:
+        out["tenant_id"] = tid
+    ck = (c.get("clinic_id") or "").strip()
+    if ck:
+        out["clinic_id"] = ck
+    rid = _extract_run_id(ctx)
+    if rid:
+        out["mlair_run_id"] = rid
+    if c.get("force_materialize") is not None:
+        out["force_materialize"] = bool(c.get("force_materialize"))
+    if c.get("batch_limit") is not None:
+        out["batch_limit"] = int(c.get("batch_limit"))
+    return out
+
+
+def _run_vetai_feedback_etl(ctx: Dict[str, Any], phase: str, endpoint_env: str, endpoint_default: str) -> Dict[str, Any]:
+    url = (os.getenv(endpoint_env) or "").strip()
+    if not url:
+        base = (os.getenv("VETAI_BASE_URL") or "http://vet-ai:8000").strip().rstrip("/")
+        url = f"{base}{endpoint_default}"
+    token = (os.getenv("VETAI_TRAINING_INVOKE_TOKEN") or "").strip()
+    if not token:
+        raise RuntimeError("VETAI_TRAINING_INVOKE_TOKEN is not set on mlair-executor")
+    timeout = _env_int("VETAI_FEEDBACK_ETL_TIMEOUT_SECONDS", _env_int("VETAI_HTTP_TIMEOUT_SECONDS", 300))
+    body = _vetai_feedback_etl_context(ctx)
+    try:
+        resp = _post_json(url, token, body, timeout_seconds=timeout)
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = (exc.read() or b"")[:2000].decode("utf-8", errors="replace")
+        except Exception:
+            detail = ""
+        raise RuntimeError(f"vet-ai feedback {phase} HTTP {exc.code}: {detail or exc.reason}") from exc
+
+    if str(resp.get("status") or "").lower() == "error":
+        raise RuntimeError(f"vet-ai feedback {phase} failed: {resp}")
+
+    params: Dict[str, Any] = {"source": f"vetai_feedback_{phase}", "phase": phase}
+    metrics: Dict[str, Any] = {}
+    lineage: Optional[Dict[str, Any]] = None
+    runtime_ds = (os.getenv("MLAIR_FEEDBACK_DATASET_NAME") or "vetai_runtime_feedback").strip()
+    train_ds = (os.getenv("MLAIR_CLINIC_TRAINING_DATASET_NAME") or "clinic_training_feedback").strip()
+    source_ds = (os.getenv("MLAIR_FEEDBACK_SOURCE_DATASET_NAME") or "vetai_doctor_feedback").strip()
+    # Per-run version label (from vet-ai session) so Hub detail matches batch rows, not clinic-wide totals.
+    batch_ver = str(resp.get("lineage_batch_version") or "").strip()
+    if not batch_ver:
+        run_id = (_extract_run_id(ctx) or "").strip()
+        ver_prefix = (os.getenv("MLAIR_FEEDBACK_LINEAGE_VERSION_PREFIX") or "batch").strip() or "batch"
+        batch_ver = f"{ver_prefix}-{run_id[:8]}" if run_id else f"{ver_prefix}-unknown"
+    params["lineage_batch_version"] = batch_ver
+
+    def _source_lineage_item(rows_n: int) -> Dict[str, Any]:
+        return {
+            "name": source_ds,
+            "source_type": "api_ingestion",
+            "version": batch_ver,
+            "record_count": rows_n,
+            "current_size": rows_n,
+        }
+
+    def _runtime_lineage_item(rows_n: int) -> Dict[str, Any]:
+        return {
+            "name": runtime_ds,
+            "source_type": "runtime_feedback",
+            "version": batch_ver,
+            "record_count": rows_n,
+            "current_size": rows_n,
+        }
+
+    if phase == "extract":
+        rows = int(resp.get("rows_extracted") or resp.get("synced") or 0)
+        params["rows_extracted"] = rows
+        params["source_dataset_name"] = source_ds
+        metrics["rows_extracted"] = {"step": 1, "value": float(rows)}
+        lineage = {
+            "inputs": [_source_lineage_item(rows)] if rows else [],
+            "outputs": [_runtime_lineage_item(rows)] if rows else [],
+        }
+    elif phase == "transform":
+        rows_t = int(resp.get("rows_transformed") or 0)
+        params["rows_transformed"] = rows_t
+        params["source_dataset_name"] = source_ds
+        metrics["rows_transformed"] = {"step": 1, "value": float(rows_t)}
+        q = resp.get("quality_score")
+        if q is not None:
+            metrics["quality_score"] = {"step": 1, "value": float(q)}
+        lineage = {
+            "inputs": [_source_lineage_item(rows_t), _runtime_lineage_item(rows_t)] if rows_t else [],
+            "outputs": [],
+        }
+    elif phase == "load":
+        vid = str(resp.get("dataset_version_id") or "").strip()
+        ver = str(resp.get("version") or "").strip()
+        out_ds = str(resp.get("training_dataset_name") or train_ds).strip()
+        rc = resp.get("record_count")
+        try:
+            rc_int = int(rc) if rc is not None else None
+        except (TypeError, ValueError):
+            rc_int = None
+        if vid:
+            params["dataset_version_id"] = vid
+            params["version"] = ver
+            params["training_dataset_name"] = out_ds
+            if rc_int is not None:
+                params["record_count"] = rc_int
+                metrics["record_count"] = {"step": 1, "value": float(rc_int)}
+            out_item: Dict[str, Any] = {
+                "name": out_ds,
+                "version": ver or "v1",
+                "uri": resp.get("uri"),
+                "source_type": "csv_import",
+            }
+            if rc_int is not None:
+                out_item["record_count"] = rc_int
+                out_item["current_size"] = rc_int
+            batch_rows = int(resp.get("rows_extracted") or resp.get("rows_transformed") or rc_int or 0)
+            lineage = {
+                "inputs": [
+                    _source_lineage_item(batch_rows),
+                    _runtime_lineage_item(batch_rows),
+                ],
+                "outputs": [out_item],
+            }
+            params["source_dataset_name"] = source_ds
+        else:
+            lineage = {
+                "inputs": [_source_lineage_item(0), _runtime_lineage_item(0)],
+                "outputs": [],
+            }
+            params["materialized"] = False
+
+    return {"params": params, "metrics": metrics, "artifacts": [], "lineage": lineage}
+
+
+def _run_vetai_feedback_extract(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    return _run_vetai_feedback_etl(
+        ctx, "extract", "VETAI_FEEDBACK_EXTRACT_URL", "/mlops/mlair/feedback-extract-invoke"
+    )
+
+
+def _run_vetai_feedback_transform(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    return _run_vetai_feedback_etl(
+        ctx, "transform", "VETAI_FEEDBACK_TRANSFORM_URL", "/mlops/mlair/feedback-transform-invoke"
+    )
+
+
+def _run_vetai_feedback_load(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    return _run_vetai_feedback_etl(ctx, "load", "VETAI_FEEDBACK_LOAD_URL", "/mlops/mlair/feedback-load-invoke")
+
+
 def main() -> int:
     plugin_name = sys.argv[1] if len(sys.argv) > 1 else ""
     raw = sys.stdin.read().strip() or "{}"
@@ -633,21 +853,32 @@ def main() -> int:
     _log(f"plugin_name={plugin_name}")
     _log(f"argv={sys.argv}")
 
-    if plugin_name == "vetai_train_invoke":
-        out = _run_vetai_train_invoke(context)
-    elif plugin_name == "vetai_train_from_dataset_version":
-        out = _run_vetai_dataset_train(context)
-    elif plugin_name == "vetai_data_prep":
-        out = _run_vetai_data_prep(context)
-    elif plugin_name == "vetai_model_train":
-        out = _run_vetai_model_train(context)
-    elif plugin_name == "vetai_validation":
-        out = _run_vetai_validation(context)
-    elif plugin_name == "vetai_persist":
-        out = _run_vetai_persist(context)
-    else:
-        _log(f"unknown plugin {plugin_name!r}, returning empty result")
-        out = {"params": {}, "metrics": {}, "artifacts": []}
+    try:
+        if plugin_name == "vetai_train_invoke":
+            out = _run_vetai_train_invoke(context)
+        elif plugin_name == "vetai_train_from_dataset_version":
+            out = _run_vetai_dataset_train(context)
+        elif plugin_name == "vetai_data_prep":
+            out = _run_vetai_data_prep(context)
+        elif plugin_name == "vetai_model_train":
+            out = _run_vetai_model_train(context)
+        elif plugin_name == "vetai_validation":
+            out = _run_vetai_validation(context)
+        elif plugin_name == "vetai_persist":
+            out = _run_vetai_persist(context)
+        elif plugin_name == "vetai_feedback_extract":
+            out = _run_vetai_feedback_extract(context)
+        elif plugin_name == "vetai_feedback_transform":
+            out = _run_vetai_feedback_transform(context)
+        elif plugin_name == "vetai_feedback_load":
+            out = _run_vetai_feedback_load(context)
+        else:
+            _log(f"unknown plugin {plugin_name!r}, returning empty result")
+            out = {"params": {}, "metrics": {}, "artifacts": []}
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        _log(f"plugin {plugin_name} failed: {exc}")
+        return 1
 
     print(json.dumps(out))
     return 0

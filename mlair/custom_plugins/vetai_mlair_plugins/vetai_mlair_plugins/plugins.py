@@ -14,6 +14,7 @@ class VetAiTrainInvokePlugin:
         "name": "vetai_train_invoke",
         "version": "0.1.0",
         "engine_version": "1.0.0",
+        "contract_version": "1.0",
         "inputs": {
             "project_id": "string",
             "tenant_id": "string?",
@@ -50,6 +51,7 @@ class VetAiTrainFromDatasetVersionPlugin:
         "name": "vetai_train_from_dataset_version",
         "version": "0.1.0",
         "engine_version": "1.0.0",
+        "contract_version": "1.0",
         "inputs": {
             "project_id": "string",
             "tenant_id": "string?",
@@ -86,6 +88,7 @@ class VetAiDataPrepPlugin:
         "name": "vetai_data_prep",
         "version": "0.1.0",
         "engine_version": "1.0.0",
+        "contract_version": "1.0",
         "inputs": {
             "project_id": "string",
             "tenant_id": "string?",
@@ -114,6 +117,7 @@ class VetAiModelTrainPlugin:
         "name": "vetai_model_train",
         "version": "0.1.0",
         "engine_version": "1.0.0",
+        "contract_version": "1.0",
         "inputs": {"project_id": "string", "tenant_id": "string?"},
         "outputs": {"session_id": "string"},
         "ui_schema": None,
@@ -135,6 +139,7 @@ class VetAiValidationPlugin:
         "name": "vetai_validation",
         "version": "0.1.0",
         "engine_version": "1.0.0",
+        "contract_version": "1.0",
         "inputs": {"project_id": "string", "tenant_id": "string?"},
         "outputs": {"session_id": "string"},
         "ui_schema": None,
@@ -156,10 +161,86 @@ class VetAiPersistPlugin:
         "name": "vetai_persist",
         "version": "0.1.0",
         "engine_version": "1.0.0",
+        "contract_version": "1.0",
         "inputs": {"project_id": "string", "tenant_id": "string?"},
         "outputs": {"model_uri": "string?"},
         "ui_schema": None,
         "lineage": {"outputs": ["model"]},
+    }
+
+    def validate(self, context: dict[str, Any]) -> bool:
+        if not isinstance(context, dict):
+            raise ValueError("context must be an object")
+        if not str(context.get("project_id") or "").strip():
+            raise ValueError("project_id is required")
+        return True
+
+
+# ── Clinic feedback data pipeline (ETL: extract → transform → load) ─────
+
+
+class VetAiFeedbackExtractPlugin:
+    """Extract eligible doctor feedback from Vet-AI stores into the MLAir accumulation buffer."""
+
+    meta: Dict[str, Any] = {
+        "name": "vetai_feedback_extract",
+        "version": "0.1.0",
+        "engine_version": "1.0.0",
+        "contract_version": "1.0",
+        "inputs": {"project_id": "string", "tenant_id": "string?", "clinic_id": "string?"},
+        "outputs": {"rows_extracted": "int"},
+        "ui_schema": None,
+        "lineage": {"inputs": ["vetai_runtime_feedback"]},
+    }
+
+    def validate(self, context: dict[str, Any]) -> bool:
+        if not isinstance(context, dict):
+            raise ValueError("context must be an object")
+        pid = str(context.get("project_id") or "").strip()
+        if not pid:
+            raise ValueError("project_id is required (clinic_<id>)")
+        if not pid.startswith("clinic_"):
+            raise ValueError("vetai_feedback_extract requires a clinic_* MLAir project")
+        return True
+
+
+class VetAiFeedbackTransformPlugin:
+    """Transform / validate accumulated clinic feedback before materialization."""
+
+    meta: Dict[str, Any] = {
+        "name": "vetai_feedback_transform",
+        "version": "0.1.0",
+        "engine_version": "1.0.0",
+        "contract_version": "1.0",
+        "inputs": {"project_id": "string", "tenant_id": "string?"},
+        "outputs": {"buffer_size": "int", "quality_score": "float?"},
+        "ui_schema": None,
+        "lineage": {"inputs": ["vetai_runtime_feedback"]},
+    }
+
+    def validate(self, context: dict[str, Any]) -> bool:
+        if not isinstance(context, dict):
+            raise ValueError("context must be an object")
+        if not str(context.get("project_id") or "").strip():
+            raise ValueError("project_id is required")
+        return True
+
+
+class VetAiFeedbackLoadPlugin:
+    """Load transformed feedback into an immutable MLAir dataset version (buffer materialize)."""
+
+    meta: Dict[str, Any] = {
+        "name": "vetai_feedback_load",
+        "version": "0.1.0",
+        "engine_version": "1.0.0",
+        "contract_version": "1.0",
+        "inputs": {"project_id": "string", "tenant_id": "string?", "force_materialize": "boolean?"},
+        "outputs": {"dataset_version_id": "string?", "version": "string?"},
+        "ui_schema": None,
+        "lineage": {
+            "inputs": ["vetai_runtime_feedback"],
+            "outputs": ["dataset_version"],
+        },
     }
 
     def validate(self, context: dict[str, Any]) -> bool:

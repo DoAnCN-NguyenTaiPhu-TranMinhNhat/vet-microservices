@@ -162,7 +162,9 @@ See Compose for `DATABASE_URL`, `MLFLOW_TRACKING_URI`, `ADMIN_TOKEN`, `MODEL_DIR
 
 ### 7.3 MLAir (optional Compose profile)
 
-Vet-AI can push trained `model.pkl` into the MLAir registry after each successful run when `MLAIR_API_BASE_URL` is set (see vet-ai `.env.example`).
+Vet-AI can push trained `model.pkl` into the MLAir registry after each successful run when `MLAIR_API_BASE_URL` is set (see vet-ai `.env.example`). Integration contract, plugin map, and local image build: **`mlair/INTEGRATION.md`** and **`mlair/build-local-images.sh`**.
+
+**MLAir images:** local dev → `docker-compose.override.yml` (copy from `docker-compose.override.example.yml`) hoặc `MLAIR_*_IMAGE=localhost/ml-air-*:local` trong `.env`. AWS → chỉ `vet-infra/.env` với `MLAIR_IMAGE_OWNER` / `MLAIR_IMAGE_TAG` (GHCR).
 
 Compose pulls **published images** from GHCR for [phu142857/ml-air](https://github.com/phu142857/ml-air) (same pattern as pulling a versioned service image, not building from source). Packages: `ghcr.io/phu142857/ml-air-api`, `ml-air-scheduler`, `ml-air-executor`, `ml-air-frontend` (see repo **Actions → publish-images** and [Packages](https://github.com/phu142857/ml-air/pkgs/container/ml-air-api)).
 

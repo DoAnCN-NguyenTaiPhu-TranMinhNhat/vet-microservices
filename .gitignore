@@ -27,3 +27,5 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+# Local MLAir image overrides (copy từ docker-compose.override.example.yml)
+docker-compose.override.yml

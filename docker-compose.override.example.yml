@@ -1,0 +1,23 @@
+# Local MLAir images (mvn + Docker Compose on laptop).
+#
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#
+# Compose tự merge file này; không dùng khi deploy AWS (vet-infra / EKS chỉ đọc vet-infra/.env + GHCR).
+#
+# Build images trước:
+#   export MLAIR_SRC=/path/to/ml-air
+#   ./mlair/build-local-images.sh
+
+services:
+  mlair-api:
+    image: localhost/ml-air-api:local
+    pull_policy: never
+  mlair-scheduler:
+    image: localhost/ml-air-scheduler:local
+    pull_policy: never
+  mlair-executor:
+    image: localhost/ml-air-executor:local
+    pull_policy: never
+  mlair-frontend:
+    image: localhost/ml-air-frontend:local
+    pull_policy: never

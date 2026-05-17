@@ -51,6 +51,11 @@ spring:
             - Path=/api/genai/**
           filters:
             - StripPrefix=2
+        # LB may send /mlops-ui here when path ordering hits the gateway; proxy to vet-ai FastAPI.
+        - id: vet-ai-fastapi-mlops-ui
+          uri: http://vet-ai:8000
+          predicates:
+            - Path=/mlops-ui/**
 
 eureka:
   client:
@@ -102,6 +107,10 @@ spring:
             - Path=/api/genai/**
           filters:
             - StripPrefix=2
+        - id: vet-ai-fastapi-mlops-ui
+          uri: http://vet-ai-fastapi-service.vet-ai.svc.cluster.local:8000
+          predicates:
+            - Path=/mlops-ui/**
 
 eureka:
   client:

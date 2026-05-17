@@ -365,7 +365,9 @@ services:
   ## MLAir control plane (Compose profile: mlair — services không chạy nếu không bật profile)
   ## Bật mặc định: đặt COMPOSE_PROFILES=mlair trong `.env` (đã có trong template) rồi `docker compose up -d`
   ## Hoặc: docker compose --profile mlair up -d
-  ## Images GHCR: https://github.com/phu142857/ml-air/pkgs/container/
+  ## Images (ưu tiên): docker-compose.override.yml (local) > MLAIR_*_IMAGE trong .env > ghcr.io/<MLAIR_IMAGE_OWNER>:<MLAIR_IMAGE_TAG>
+  ## Local: cp docker-compose.override.example.yml docker-compose.override.yml + ./mlair/build-local-images.sh
+  ## AWS: vet-infra chỉ dùng GHCR — xem vet-infra/env.template (không dùng override / MLAIR_*_IMAGE)
   ## Vet-AI: MLAIR_API_BASE_URL=http://mlair-api:8080 (see .env.example)
   ## Pin: MLAIR_IMAGE_TAG=v0.4.0 (example). Browser uses mlair-browser-gateway: same host:port as UI,
   ## ./mlair/mlair-runtime-config.js sets api_base_url to window.location.origin (see .env.example).
@@ -404,11 +406,15 @@ services:
 
   mlair-api:
     profiles: ["mlair"]
-    image: ${MLAIR_API_IMAGE:-localhost/ml-air-api:local}
-    pull_policy: ${MLAIR_API_PULL_POLICY:-never}
+    image: ${MLAIR_API_IMAGE:-ghcr.io/${MLAIR_IMAGE_OWNER:-phu142857}/ml-air-api:${MLAIR_IMAGE_TAG:-latest}}
+    pull_policy: ${MLAIR_API_PULL_POLICY:-${MLAIR_PULL_POLICY:-if_not_present}}
     container_name: mlair-api
+    # Startup chowns named volumes (root-owned on first mount); uvicorn runs as appuser.
+    user: "0:0"
     networks: [petclinic-net]
     environment:
+      # Hub reads GET /v1/runtime-config; null api_base_url + runtime JS uses window.location.origin (gateway :38080).
+      ML_AIR_RUNTIME_API_BASE_URL: ${ML_AIR_RUNTIME_API_BASE_URL:-}
       ML_AIR_REDIS_URL: redis://mlair-redis:6379/0
       ML_AIR_DATABASE_URL: postgresql://${MLAIR_POSTGRES_USER:-mlair}:${MLAIR_POSTGRES_PASSWORD:-mlair}@mlair-postgres:5432/${MLAIR_POSTGRES_DB:-mlair}
       ML_AIR_JWT_HS256_SECRET: ${ML_AIR_JWT_HS256_SECRET:-mlair-dev-jwt-secret-32bytes-minimum-key}
@@ -422,14 +428,16 @@ services:
       ML_AIR_DEFAULT_MODEL_ARTIFACT_ROOT: ${ML_AIR_DEFAULT_MODEL_ARTIFACT_ROOT:-file:///mlair/artifacts/models}
       # GHCR publish does not include realtime; disable fan-out unless you add a custom realtime image.
       MLAIR_REALTIME_ENABLED: ${MLAIR_REALTIME_ENABLED:-false}
-      MLAIR_MODEL_PROMOTE_WEBHOOK_URL: ${MLAIR_MODEL_PROMOTE_WEBHOOK_URL:-}
-      MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN: ${MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN:-}
+      MLAIR_MODEL_PROMOTE_WEBHOOK_URL: ${MLAIR_MODEL_PROMOTE_WEBHOOK_URL:-http://vet-ai:8000/mlops/mlair/promote-webhook}
+      MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN: ${MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN:-${MLAIR_PROMOTE_WEBHOOK_INBOUND_TOKEN:-${ADMIN_TOKEN:-admin-secret}}}
+      MLAIR_MODEL_PROMOTE_WEBHOOK_TIMEOUT_SECONDS: ${MLAIR_MODEL_PROMOTE_WEBHOOK_TIMEOUT_SECONDS:-15}
+      ML_AIR_STRICT_DATASET_VERSION_REQUIRED: ${ML_AIR_STRICT_DATASET_VERSION_REQUIRED:-1}
     ports:
       - "${MLAIR_API_HOST_PORT:-18080}:8080"
     volumes:
       - mlair_dataset_artifacts:/mlair/artifacts/datasets
       - mlair_model_artifacts:/mlair/artifacts/models
-      - ./mlair/custom_plugins/vetai_mlair_plugins:/mlair/custom_plugins/vetai_mlair_plugins:rw
+      - ./mlair/custom_plugins/vetai_mlair_plugins:/mlair/custom_plugins/vetai_mlair_plugins:ro
     depends_on:
       mlair-redis:
         condition: service_started
@@ -459,25 +467,14 @@ services:
                 )
         "
         alembic upgrade head
-        python -c "
-        # Hotfix for ml-air-api (2026-05): ingest_lineage_from_task called a keyword-only
-        # helper with positional args, causing 500 and preventing runtime_feedback materialization.
-        # Patch is idempotent and safe across image tags.
-        from pathlib import Path
-        p = Path('/app/app/services/lineage_service.py')
-        if p.exists():
-            s = p.read_text(encoding='utf-8')
-            before = s
-            s = s.replace(
-                'materialized_version_id, materialized_version = _materialize_runtime_feedback_if_needed(\\n                tenant_id,\\n                project_id,',
-                'materialized_version_id, materialized_version = _materialize_runtime_feedback_if_needed(\\n                tenant_id=tenant_id,\\n                project_id=project_id,',
-            )
-            if s != before:
-                p.write_text(s, encoding='utf-8')
-        "
-        # Install custom plugins into API env (entry-point discovery: mlair.plugins).
-        # This makes the plugin visible to /v1/.../plugins and pipeline validation.
-        pip install -e /mlair/custom_plugins/vetai_mlair_plugins
+        mkdir -p /mlair/artifacts/datasets /mlair/artifacts/models
+        chown -R appuser:appuser /mlair/artifacts
+        # Install Vet-AI plugins into a writable path (bind-mount egg-info breaks pip -e on :ro/:rw).
+        mkdir -p /tmp/vetai_mlair_plugins/vetai_mlair_plugins
+        cp /mlair/custom_plugins/vetai_mlair_plugins/pyproject.toml /tmp/vetai_mlair_plugins/
+        cp /mlair/custom_plugins/vetai_mlair_plugins/vetai_mlair_plugins/__init__.py /tmp/vetai_mlair_plugins/vetai_mlair_plugins/
+        cp /mlair/custom_plugins/vetai_mlair_plugins/vetai_mlair_plugins/plugins.py /tmp/vetai_mlair_plugins/vetai_mlair_plugins/
+        pip install -e /tmp/vetai_mlair_plugins
         python -c "
         import os
         import psycopg
@@ -498,14 +495,14 @@ services:
                     'UPDATE dataset_versions SET materialized_from_buffer = false WHERE materialized_from_buffer IS NULL'
                 )
         "
-        exec uvicorn main:app --host 0.0.0.0 --port 8080
+        exec su -s /bin/sh appuser -c 'exec uvicorn main:app --host 0.0.0.0 --port 8080'
     healthcheck:
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/docs', timeout=2).read(1)",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read(1)",
         ]
       interval: 15s
       timeout: 5s
@@ -515,8 +512,8 @@ services:
 
   mlair-scheduler:
     profiles: ["mlair"]
-    image: ${MLAIR_SCHEDULER_IMAGE:-localhost/ml-air-scheduler:local}
-    pull_policy: ${MLAIR_SCHEDULER_PULL_POLICY:-never}
+    image: ${MLAIR_SCHEDULER_IMAGE:-ghcr.io/${MLAIR_IMAGE_OWNER:-phu142857}/ml-air-scheduler:${MLAIR_IMAGE_TAG:-latest}}
+    pull_policy: ${MLAIR_SCHEDULER_PULL_POLICY:-${MLAIR_PULL_POLICY:-if_not_present}}
     container_name: mlair-scheduler
     networks: [petclinic-net]
     environment:
@@ -556,8 +553,8 @@ services:
 
   mlair-executor:
     profiles: ["mlair"]
-    image: ${MLAIR_EXECUTOR_IMAGE:-localhost/ml-air-executor:local}
-    pull_policy: ${MLAIR_EXECUTOR_PULL_POLICY:-never}
+    image: ${MLAIR_EXECUTOR_IMAGE:-ghcr.io/${MLAIR_IMAGE_OWNER:-phu142857}/ml-air-executor:${MLAIR_IMAGE_TAG:-latest}}
+    pull_policy: ${MLAIR_EXECUTOR_PULL_POLICY:-${MLAIR_PULL_POLICY:-if_not_present}}
     container_name: mlair-executor
     networks: [petclinic-net]
     environment:
@@ -583,7 +580,8 @@ services:
       ML_AIR_PLUGIN_TIMEOUT_SECONDS: ${MLAIR_PLUGIN_TIMEOUT_SECONDS:-1200}
     volumes:
       - ./mlair/custom_runner:/mlair/custom_runner:ro
-      - ./mlair/executor_main_override.py:/app/main.py:ro
+      # Image WORKDIR is /app/executor; CMD runs `python main.py` → /app/executor/main.py
+      - ./mlair/executor_main_override.py:/app/executor/main.py:ro
     depends_on:
       mlair-redis:
         condition: service_started
@@ -595,13 +593,31 @@ services:
 
   mlair-frontend:
     profiles: ["mlair"]
-    image: ${MLAIR_FRONTEND_IMAGE:-localhost/ml-air-frontend:local}
-    pull_policy: ${MLAIR_FRONTEND_PULL_POLICY:-never}
+    image: ${MLAIR_FRONTEND_IMAGE:-ghcr.io/${MLAIR_IMAGE_OWNER:-phu142857}/ml-air-frontend:${MLAIR_IMAGE_TAG:-latest}}
+    pull_policy: ${MLAIR_FRONTEND_PULL_POLICY:-${MLAIR_PULL_POLICY:-if_not_present}}
     container_name: mlair-frontend
     networks: [petclinic-net]
+    environment:
+      # Next.js standalone binds to HOSTNAME; Docker sets it to container id → not reachable on 127.0.0.1.
+      HOSTNAME: "0.0.0.0"
+      # Next.js /v1 proxy (when browser uses same-origin /v1) must reach API on the compose network.
+      MLAIR_NEXT_INTERNAL_API_URL: http://mlair-api:8080
+      ML_AIR_API_BASE_URL: http://mlair-api:8080
     volumes:
       # Runtime API base = window.location.origin; nginx (mlair-browser-gateway) proxies /v1 → mlair-api.
       - ./mlair/mlair-runtime-config.js:/app/public/mlair-runtime-config.js:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3000',(r)=>{r.resume();process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
     depends_on:
       mlair-api:
         condition: service_started
@@ -614,13 +630,29 @@ services:
     networks: [petclinic-net]
     ports:
       - "${MLAIR_FRONTEND_HOST_PORT:-38080}:8080"
+    entrypoint: ["/bin/sh", "/etc/nginx/mlair-gateway-entrypoint.sh"]
     volumes:
-      - ./mlair/nginx-mlair-browser.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./mlair/nginx-mlair-browser.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./mlair/nginx-browser-gateway-entrypoint.sh:/etc/nginx/mlair-gateway-entrypoint.sh:ro
+      - ./mlair/mlair-runtime-config.js:/etc/nginx/mlair/mlair-runtime-config.js:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "--timeout=3",
+          "http://127.0.0.1:8080/",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     depends_on:
       mlair-api:
         condition: service_healthy
       mlair-frontend:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

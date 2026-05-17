@@ -49,6 +49,42 @@ def _redis() -> Redis:
     return Redis.from_url(url, decode_responses=True)
 
 
+def _build_plugin_context(task: dict) -> dict:
+    """
+    Merge scheduler task context with pipeline task config + run-scoped ids.
+
+    MLAir often enqueues only run.plugin_context (dataset_version_id, model_id) without
+    project_id/tenant_id/training_mode from the pipeline version snapshot.
+    """
+    ctx = dict(task.get("context") or {})
+    cfg = task.get("config_snapshot")
+    if isinstance(cfg, dict):
+        task_key = str(task.get("task_id") or "").split(":")[-1]
+        for tdef in cfg.get("tasks") or []:
+            if not isinstance(tdef, dict):
+                continue
+            if str(tdef.get("id") or "") == task_key:
+                tctx = tdef.get("context")
+                if isinstance(tctx, dict):
+                    ctx = {**tctx, **ctx}
+                break
+    tid_full = str(task.get("task_id") or ctx.get("task_id") or "").strip()
+    if tid_full:
+        ctx["task_id"] = tid_full
+    rid = str(task.get("run_id") or ctx.get("run_id") or ctx.get("runId") or "").strip()
+    if not rid and ":" in tid_full:
+        rid = tid_full.split(":", 1)[0].strip()
+    if rid:
+        ctx["run_id"] = rid
+    tid = str(task.get("tenant_id") or ctx.get("tenant_id") or "default").strip() or "default"
+    pid = str(task.get("project_id") or ctx.get("project_id") or "default_project").strip() or "default_project"
+    ctx.setdefault("tenant_id", tid)
+    ctx.setdefault("project_id", pid)
+    if task.get("pipeline_id"):
+        ctx.setdefault("pipeline_id", task.get("pipeline_id"))
+    return ctx
+
+
 def _run_plugin_subprocess(plugin_name: str, context: dict) -> dict:
     timeout_seconds = int(os.getenv("ML_AIR_PLUGIN_TIMEOUT_SECONDS", "120"))
     runner_module = os.getenv("ML_AIR_PLUGIN_RUNNER_MODULE", "mlair_runner")
@@ -64,9 +100,13 @@ def _run_plugin_subprocess(plugin_name: str, context: dict) -> dict:
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": f"timeout_after_{timeout_seconds}s"}
     if proc.returncode != 0:
+        err_tail = (proc.stderr or proc.stdout or "").strip()[:2000]
+        err_msg = f"exit_code={proc.returncode}"
+        if err_tail:
+            err_msg = f"{err_msg}: {err_tail}"
         return {
             "ok": False,
-            "error": f"exit_code={proc.returncode}",
+            "error": err_msg,
             "stderr": (proc.stderr or "").strip(),
             "stdout": (proc.stdout or "").strip(),
         }
@@ -397,9 +437,7 @@ def main() -> None:
             status = "FAILED"
         plugin_name = task.get("plugin_name")
         if plugin_name:
-            plugin_ctx = dict(task.get("context", {}))
-            if task.get("run_id"):
-                plugin_ctx.setdefault("run_id", task["run_id"])
+            plugin_ctx = _build_plugin_context(task)
             plugin_exec = _run_plugin_subprocess(plugin_name=plugin_name, context=plugin_ctx)
             if not plugin_exec.get("ok"):
                 status = "FAILED"
