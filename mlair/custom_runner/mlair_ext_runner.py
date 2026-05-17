@@ -543,6 +543,9 @@ def _vetai_phase_context(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "(use Datasets → train from model + dataset version, not bare pipeline Run)"
         )
     out["dataset_version_id"] = dvid
+    approved = (c.get("approved_feedback_dataset_version_id") or "").strip()
+    if approved:
+        out["approved_feedback_dataset_version_id"] = approved
 
     return out
 
@@ -672,7 +675,42 @@ def _run_vetai_phase(
 
 
 def _run_vetai_data_prep(ctx: Dict[str, Any]) -> Dict[str, Any]:
-    return _run_vetai_phase(ctx, "data_prep", "VETAI_DATA_PREP_URL", "/mlops/mlair/data-prep-invoke")
+    out = _run_vetai_phase(ctx, "data_prep", "VETAI_DATA_PREP_URL", "/mlops/mlair/data-prep-invoke")
+    c = _enrich_vetai_plugin_context(ctx)
+    curated = (c.get("dataset_version_id") or "").strip()
+    approved = (c.get("approved_feedback_dataset_version_id") or "").strip()
+    if curated and approved:
+        approved_ds = (
+            os.getenv("MLAIR_CLINIC_APPROVED_FEEDBACK_DATASET_NAME") or "clinic_approved_feedback"
+        ).strip()
+        run_id = (_extract_run_id(ctx) or "retrain")[:8]
+        out["lineage"] = {
+            "inputs": [
+                {
+                    "name": "curated_import",
+                    "version": f"curated-{curated[:8]}",
+                    "source_type": "curated_import",
+                },
+                {
+                    "name": approved_ds,
+                    "version": f"approved-{approved[:8]}",
+                    "source_type": "approved_feedback",
+                },
+            ],
+            "outputs": [
+                {
+                    "name": "merged_training_session",
+                    "version": f"retrain-{run_id}",
+                    "source_type": "merged_dataset",
+                }
+            ],
+        }
+        params = out.get("params") if isinstance(out.get("params"), dict) else {}
+        params["continuous_retrain"] = True
+        params["curated_dataset_version_id"] = curated
+        params["approved_feedback_dataset_version_id"] = approved
+        out["params"] = params
+    return out
 
 
 def _run_vetai_model_train(ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -736,7 +774,11 @@ def _run_vetai_feedback_etl(ctx: Dict[str, Any], phase: str, endpoint_env: str, 
     metrics: Dict[str, Any] = {}
     lineage: Optional[Dict[str, Any]] = None
     runtime_ds = (os.getenv("MLAIR_FEEDBACK_DATASET_NAME") or "vetai_runtime_feedback").strip()
-    train_ds = (os.getenv("MLAIR_CLINIC_TRAINING_DATASET_NAME") or "clinic_training_feedback").strip()
+    staging_ds = (
+        os.getenv("MLAIR_CLINIC_FEEDBACK_STAGING_DATASET_NAME")
+        or os.getenv("MLAIR_CLINIC_TRAINING_DATASET_NAME")
+        or "clinic_feedback_staging"
+    ).strip()
     source_ds = (os.getenv("MLAIR_FEEDBACK_SOURCE_DATASET_NAME") or "vetai_doctor_feedback").strip()
     # Per-run version label (from vet-ai session) so Hub detail matches batch rows, not clinic-wide totals.
     batch_ver = str(resp.get("lineage_batch_version") or "").strip()
@@ -788,7 +830,7 @@ def _run_vetai_feedback_etl(ctx: Dict[str, Any], phase: str, endpoint_env: str, 
     elif phase == "load":
         vid = str(resp.get("dataset_version_id") or "").strip()
         ver = str(resp.get("version") or "").strip()
-        out_ds = str(resp.get("training_dataset_name") or train_ds).strip()
+        out_ds = str(resp.get("staging_dataset_name") or resp.get("training_dataset_name") or staging_ds).strip()
         rc = resp.get("record_count")
         try:
             rc_int = int(rc) if rc is not None else None
@@ -796,17 +838,20 @@ def _run_vetai_feedback_etl(ctx: Dict[str, Any], phase: str, endpoint_env: str, 
             rc_int = None
         if vid:
             params["dataset_version_id"] = vid
+            params["staging_dataset_version_id"] = vid
             params["version"] = ver
             params["training_dataset_name"] = out_ds
+            params["staging_dataset_name"] = out_ds
             if rc_int is not None:
                 params["record_count"] = rc_int
                 metrics["record_count"] = {"step": 1, "value": float(rc_int)}
             out_item: Dict[str, Any] = {
                 "name": out_ds,
-                "version": ver or "v1",
+                "version": str(resp.get("lineage_batch_version") or ver or "v1"),
                 "uri": resp.get("uri"),
-                "source_type": "csv_import",
+                "source_type": "feedback_staging",
             }
+            params["does_not_train"] = True
             if rc_int is not None:
                 out_item["record_count"] = rc_int
                 out_item["current_size"] = rc_int

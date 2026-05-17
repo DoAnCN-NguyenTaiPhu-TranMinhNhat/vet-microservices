@@ -227,7 +227,7 @@ class VetAiFeedbackTransformPlugin:
 
 
 class VetAiFeedbackLoadPlugin:
-    """Load transformed feedback into an immutable MLAir dataset version (buffer materialize)."""
+    """Load transformed feedback into clinic_feedback_staging (does NOT train — approve before retrain)."""
 
     meta: Dict[str, Any] = {
         "name": "vetai_feedback_load",
@@ -235,11 +235,11 @@ class VetAiFeedbackLoadPlugin:
         "engine_version": "1.0.0",
         "contract_version": "1.0",
         "inputs": {"project_id": "string", "tenant_id": "string?", "force_materialize": "boolean?"},
-        "outputs": {"dataset_version_id": "string?", "version": "string?"},
+        "outputs": {"staging_dataset_version_id": "string?", "version": "string?"},
         "ui_schema": None,
         "lineage": {
             "inputs": ["vetai_runtime_feedback"],
-            "outputs": ["dataset_version"],
+            "outputs": ["clinic_feedback_staging"],
         },
     }
 
