@@ -60,7 +60,7 @@ class VetAiTrainFromDatasetVersionPlugin:
         },
         "outputs": {"training_id": "int", "model_uri": "string?"},
         "ui_schema": None,
-        "lineage": {"inputs": ["dataset_version"], "outputs": ["model"]},
+        "lineage": {"inputs": ["veterinary_curated"]},
     }
 
     def validate(self, context: dict[str, Any]) -> bool:
@@ -97,7 +97,7 @@ class VetAiDataPrepPlugin:
         },
         "outputs": {"session_id": "string", "samples": "int"},
         "ui_schema": None,
-        "lineage": {"inputs": ["dataset_version"]},
+        "lineage": {"inputs": ["veterinary_curated"]},
     }
 
     def validate(self, context: dict[str, Any]) -> bool:
@@ -165,7 +165,7 @@ class VetAiPersistPlugin:
         "inputs": {"project_id": "string", "tenant_id": "string?"},
         "outputs": {"model_uri": "string?"},
         "ui_schema": None,
-        "lineage": {"outputs": ["model"]},
+        "lineage": None,
     }
 
     def validate(self, context: dict[str, Any]) -> bool:

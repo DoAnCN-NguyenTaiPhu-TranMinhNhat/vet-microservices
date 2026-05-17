@@ -20,6 +20,35 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _curated_dataset_name() -> str:
+    """Hub dataset name for curated CSV imports (avoid phantom ``curated_import`` datasets)."""
+    return (os.getenv("MLAIR_CURATED_DATASET_NAME") or "veterinary_curated").strip()
+
+
+def _lineage_dataset_input(dsv: str, *, source_type: str = "dataset_version") -> Dict[str, Any]:
+    dsv = (dsv or "").strip()
+    item: Dict[str, Any] = {
+        "name": _curated_dataset_name(),
+        "version": dsv[:12] if len(dsv) >= 8 else "unknown",
+        "source_type": source_type,
+    }
+    if dsv:
+        item["dataset_version_id"] = dsv
+    return item
+
+
+def _lineage_feedback_dataset_input(name: str, dsv: str, *, source_type: str) -> Dict[str, Any]:
+    dsv = (dsv or "").strip()
+    item: Dict[str, Any] = {
+        "name": (name or "").strip(),
+        "version": f"{source_type}-{dsv[:8]}" if dsv else "unknown",
+        "source_type": source_type,
+    }
+    if dsv:
+        item["dataset_version_id"] = dsv
+    return item
+
+
 def _post_json(url: str, token: str, body: Dict[str, Any], timeout_seconds: int) -> Dict[str, Any]:
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
@@ -174,12 +203,8 @@ def _run_vetai_train_invoke(plugin_context: Dict[str, Any]) -> Dict[str, Any]:
     mv = mlair_sync.get("mlair_version") if isinstance(mlair_sync.get("mlair_version"), dict) else {}
     artifact_uri = mv.get("artifact_uri") or mv.get("uri") or None
     if artifact_uri:
+        # Artifacts only — do not emit lineage ``model`` (MLAir Hub materializes it as a dataset).
         artifacts.append({"path": "model", "uri": str(artifact_uri)})
-        lineage = {
-            "outputs": [
-                {"name": "model", "version": str(mv.get("version") or ""), "uri": str(artifact_uri)},
-            ]
-        }
 
     out = {"params": params, "metrics": metrics, "artifacts": artifacts, "lineage": lineage}
     if not ok:
@@ -408,7 +433,6 @@ def _run_vetai_dataset_train(plugin_context: Dict[str, Any]) -> Dict[str, Any]:
     artifact_uri = mv.get("artifact_uri") or mv.get("uri") or None
     if artifact_uri:
         artifacts.append({"path": "model", "uri": str(artifact_uri)})
-        lineage = {"outputs": [{"name": "model", "version": str(mv.get("version") or ""), "uri": str(artifact_uri)}]}
 
     # Post final params/metrics/artifacts to the pipeline run
     if run_id:
@@ -669,7 +693,6 @@ def _run_vetai_phase(
         artifact_uri = mv.get("artifact_uri") or mv.get("uri")
         if artifact_uri:
             artifacts.append({"path": "model", "uri": str(artifact_uri)})
-            lineage = {"outputs": [{"name": "model", "version": str(mv.get("version") or ""), "uri": str(artifact_uri)}]}
 
     return {"params": params, "metrics": metrics, "artifacts": artifacts, "lineage": lineage}
 
@@ -679,6 +702,11 @@ def _run_vetai_data_prep(ctx: Dict[str, Any]) -> Dict[str, Any]:
     c = _enrich_vetai_plugin_context(ctx)
     curated = (c.get("dataset_version_id") or "").strip()
     approved = (c.get("approved_feedback_dataset_version_id") or "").strip()
+    params = out.get("params") if isinstance(out.get("params"), dict) else {}
+    if curated:
+        params["curated_dataset_version_id"] = curated
+    if approved:
+        params["approved_feedback_dataset_version_id"] = approved
     if curated and approved:
         approved_ds = (
             os.getenv("MLAIR_CLINIC_APPROVED_FEEDBACK_DATASET_NAME") or "clinic_approved_feedback"
@@ -686,16 +714,8 @@ def _run_vetai_data_prep(ctx: Dict[str, Any]) -> Dict[str, Any]:
         run_id = (_extract_run_id(ctx) or "retrain")[:8]
         out["lineage"] = {
             "inputs": [
-                {
-                    "name": "curated_import",
-                    "version": f"curated-{curated[:8]}",
-                    "source_type": "curated_import",
-                },
-                {
-                    "name": approved_ds,
-                    "version": f"approved-{approved[:8]}",
-                    "source_type": "approved_feedback",
-                },
+                _lineage_dataset_input(curated),
+                _lineage_feedback_dataset_input(approved_ds, approved, source_type="approved_feedback"),
             ],
             "outputs": [
                 {
@@ -705,11 +725,10 @@ def _run_vetai_data_prep(ctx: Dict[str, Any]) -> Dict[str, Any]:
                 }
             ],
         }
-        params = out.get("params") if isinstance(out.get("params"), dict) else {}
         params["continuous_retrain"] = True
-        params["curated_dataset_version_id"] = curated
-        params["approved_feedback_dataset_version_id"] = approved
-        out["params"] = params
+    elif curated:
+        out["lineage"] = {"inputs": [_lineage_dataset_input(curated)]}
+    out["params"] = params
     return out
 
 
