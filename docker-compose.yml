@@ -264,8 +264,8 @@ services:
     environment:
       # Prefer values from env_file; keep sane defaults for local
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
-      # MLAir (optional): set MLAIR_API_BASE_URL in ./.env when mlair-api is on petclinic-net
-      MLAIR_API_BASE_URL: ${MLAIR_API_BASE_URL:-}
+      # MLAir inside petclinic-net (not host localhost — see MLAIR_API_INTERNAL_BASE_URL in .env.example)
+      MLAIR_API_BASE_URL: ${MLAIR_API_INTERNAL_BASE_URL:-http://mlair-api:8080}
       MLAIR_API_TOKEN: ${MLAIR_API_TOKEN:-admin-token}
       MLAIR_TENANT_ID: ${MLAIR_TENANT_ID:-default}
       MLAIR_PROJECT_GLOBAL: ${MLAIR_PROJECT_GLOBAL:-default_project}
@@ -335,7 +335,7 @@ services:
         required: false
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
-      MLAIR_API_BASE_URL: ${MLAIR_API_BASE_URL:-}
+      MLAIR_API_BASE_URL: ${MLAIR_API_INTERNAL_BASE_URL:-http://mlair-api:8080}
       MLAIR_API_TOKEN: ${MLAIR_API_TOKEN:-admin-token}
       MLAIR_TENANT_ID: ${MLAIR_TENANT_ID:-default}
       MLAIR_PROJECT_GLOBAL: ${MLAIR_PROJECT_GLOBAL:-default_project}
@@ -432,6 +432,8 @@ services:
       MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN: ${MLAIR_MODEL_PROMOTE_WEBHOOK_BEARER_TOKEN:-${MLAIR_PROMOTE_WEBHOOK_INBOUND_TOKEN:-${ADMIN_TOKEN:-admin-secret}}}
       MLAIR_MODEL_PROMOTE_WEBHOOK_TIMEOUT_SECONDS: ${MLAIR_MODEL_PROMOTE_WEBHOOK_TIMEOUT_SECONDS:-15}
       ML_AIR_STRICT_DATASET_VERSION_REQUIRED: ${ML_AIR_STRICT_DATASET_VERSION_REQUIRED:-1}
+      # ml-air default 1: every POST /runs needs dataset_version_id (echo_tracking sink needs MLAIR_FEEDBACK_SINK_DATASET_VERSION_ID or --no-mlair-sync seed).
+      ML_AIR_STRICT_DATASET_VERSION_ALL_POST_RUNS: ${ML_AIR_STRICT_DATASET_VERSION_ALL_POST_RUNS:-1}
     ports:
       - "${MLAIR_API_HOST_PORT:-18080}:8080"
     volumes:
@@ -468,7 +470,7 @@ services:
         "
         alembic upgrade head
         mkdir -p /mlair/artifacts/datasets /mlair/artifacts/models
-        chown -R appuser:appuser /mlair/artifacts
+        chown -R appuser:appuser /mlair/artifacts 2>/dev/null || true
         # Install Vet-AI plugins into a writable path (bind-mount egg-info breaks pip -e on :ro/:rw).
         mkdir -p /tmp/vetai_mlair_plugins/vetai_mlair_plugins
         cp /mlair/custom_plugins/vetai_mlair_plugins/pyproject.toml /tmp/vetai_mlair_plugins/
@@ -495,7 +497,8 @@ services:
                     'UPDATE dataset_versions SET materialized_from_buffer = false WHERE materialized_from_buffer IS NULL'
                 )
         "
-        exec su -s /bin/sh appuser -c 'exec uvicorn main:app --host 0.0.0.0 --port 8080'
+        # Local compose/Podman: su/runuser to appuser often fails (PAM / rootless). Run uvicorn as container user.
+        exec uvicorn main:app --host 0.0.0.0 --port 8080
     healthcheck:
       test:
         [
@@ -525,6 +528,7 @@ services:
       MLAIR_REALTIME_ENABLED: ${MLAIR_REALTIME_ENABLED:-false}
     # Hotpatch: propagate project_id/tenant_id into task.context so plugin runners
     # don't require UI callers to manually pass run-scoped context.
+    working_dir: /app/scheduler
     command:
       - sh
       - -c
@@ -532,7 +536,7 @@ services:
         set -e
         python -c "
         from pathlib import Path
-        p = Path('/app/main.py')
+        p = Path('main.py')
         if p.exists():
             s = p.read_text(encoding='utf-8')
             before = s
@@ -569,7 +573,8 @@ services:
       # Use our runner for real Vet-AI training tasks.
       ML_AIR_PLUGIN_RUNNER_MODULE: mlair_ext_runner
       PYTHONPATH: /mlair/custom_runner
-      VETAI_BASE_URL: ${VETAI_BASE_URL:-http://vet-ai:8000}
+      # In-container DNS (host scripts may export VETAI_BASE_URL=http://localhost:8000 — do not pass that here)
+      VETAI_BASE_URL: ${VETAI_INTERNAL_BASE_URL:-http://vet-ai:8000}
       VETAI_TRAINING_INVOKE_URL: ${VETAI_TRAINING_INVOKE_URL:-http://vet-ai:8000/mlops/mlair/training-invoke}
       VETAI_DATASET_TRAIN_URL: ${VETAI_DATASET_TRAIN_URL:-http://vet-ai:8000/mlops/mlair/dataset-train-invoke}
       VETAI_TRAINING_INVOKE_TOKEN: ${MLAIR_TRAINING_INVOKE_TOKEN:-}
